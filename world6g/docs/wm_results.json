@@ -1,0 +1,44 @@
+{
+ "n_train": 63232,
+ "n_test": 16224,
+ "split": "前 8s 训练 / 后 2s 测试 (时间外推)",
+ "state_cols": [
+  "服务小区RSRP(dBm)",
+  "服务小区SINR(dB)",
+  "下行速率(Mbps)",
+  "CQI"
+ ],
+ "persistence": {
+  "rmse_norm": 0.3055,
+  "mae_norm": 0.1606,
+  "rmse_per_kpi": {
+   "服务小区RSRP(dBm)": 2.302,
+   "服务小区SINR(dB)": 3.351,
+   "下行速率(Mbps)": 24.867,
+   "CQI": 0.947
+  }
+ },
+ "linear_ar_action": {
+  "rmse_norm": 0.281,
+  "mae_norm": 0.1595,
+  "rmse_per_kpi": {
+   "服务小区RSRP(dBm)": 2.328,
+   "服务小区SINR(dB)": 3.003,
+   "下行速率(Mbps)": 21.679,
+   "CQI": 0.887
+  }
+ },
+ "gru_world_model": {
+  "rmse_norm": 0.2746,
+  "mae_norm": 0.1541,
+  "rmse_per_kpi": {
+   "服务小区RSRP(dBm)": 2.17,
+   "服务小区SINR(dB)": 2.802,
+   "下行速率(Mbps)": 20.026,
+   "CQI": 0.908
+  },
+  "params": 18772
+ },
+ "improvement_vs_persistence_pct": 10.1,
+ "improvement_vs_linear_pct": 2.3
+}
