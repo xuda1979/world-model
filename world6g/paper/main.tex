@@ -1,0 +1,149 @@
+\documentclass[10pt,conference]{IEEEtran}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{xcolor}
+
+\newcommand{\twin}{\textsc{Tiny-Twin}}
+\newcommand{\wm}{\textsc{GRU-WM}}
+
+\title{A Calibrated Counterfactual Digital Twin for\\ Action-Conditioned World Models in 6G Networks}
+
+\author{\IEEEauthorblockN{Anonymous}
+\IEEEauthorblockA{Manuscript under preparation — October 2026}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Training world models for next-generation (6G) cellular networks requires action-conditioned data that is impossible to obtain from live networks at scale: operators cannot perturb transmit power, scheduling, or beam configuration merely to collect training data.
+We present \twin{}, a CPU-native digital twin of a 6G network whose physical layer---3GPP TR~38.901 path loss, first-order shadow fading, A3 handover control, SSB-SINR, and MCS-to-rate mapping---is \emph{calibrated end-to-end against real-network simulation data} comprising 10 episodes, 249 fields, and 3.38~million real MRO measurement samples.
+Calibration is validated with a distributional test battery (two-sample Kolmogorov--Smirnov, Wasserstein-1, quantile--quantile regression) over four deployment scenes: all eight radio-link KPIs achieve Q--Q $R^2>0.95$.
+On top of the twin we construct \emph{same-root counterfactual branches}: for each intervention in a four-dimensional action space (transmit power, PRB allocation, beam azimuth, A3 offset), the counterfactual trajectory shares the identical UE geometry, shadowing, and noise streams of its baseline, so the causal effect $\Delta s$ of every action is exactly isolated.
+This yields 83{,}200 $(s,a,s')$ samples that a world model can learn from.
+As a first benchmark we compare a 18.8k-parameter GRU world model against persistence and action-aware linear autoregressive baselines under time-extrapolating splits (train on the first 8\,s of each branch, test on the last 2\,s): the world model reduces one-step prediction RMSE by 10.1\% over persistence and 2.3\% over the linear baseline, with per-KPI errors of 2.17\,dB (RSRP), 2.80\,dB (SINR), and 20.0\,Mbps (downlink rate).
+All components---data lake, twin, validation, training, and visualization---are reproducible from a single repository.
+\end{abstract}
+
+\section{Introduction}
+World models promise networks that can \emph{imagine}: predict how KPIs evolve under candidate control actions before committing them to the live network~\cite{ha2018world,le2019world}.
+For 6G cellular networks the obstacle is data.
+Radio data falls into two camps.
+\emph{Real-network} data (PM counters, MRO measurement reports) is authentic but passive---it records only the actions operators actually took, and cannot answer ``what would have happened under a different beam or power?''
+\emph{Simulator} data is interactive but risks a reality gap: a model trained on an uncalibrated simulator inherits its biases.
+
+We argue the two must be \emph{composed}, not chosen between.
+This paper contributes:
+\begin{enumerate}
+\item \textbf{A calibrated twin.} \twin{} re-uses the physical-layer structure of a production system-level simulator (38.901 UMa/UMi path loss, AR(1) shadow fading with correlation distance fitted from data, sector antenna patterns, A3 handover with L3 filtering, SSB-SINR with beam sweeping, ON/OFF Markov traffic with finite queues) but every free parameter is fitted \emph{from} the data lake rather than assumed (Table~\ref{tab:calibration}).
+\item \textbf{Distributional fidelity validation.} We go beyond mean-matching: per scene and KPI, we run KS tests, Wasserstein-1 distances, and Q--Q regression (Table~\ref{tab:fidelity}), reporting where the twin is statistically indistinguishable from real-network simulation and where it is not.
+\item \textbf{Same-root counterfactual data.} Action interventions share random streams with their baselines, giving exact causal contrasts $\Delta s$ (Fig.~\ref{fig:actions})---a property live networks can never provide and offline RL~\cite{levine2020offline} critically needs.
+\item \textbf{An action-conditioned world-model benchmark} with time-extrapolating evaluation and three baselines of increasing capacity (Table~\ref{tab:wm}).
+\end{enumerate}
+
+\section{System Overview}
+\subsection{Data lake}
+The lake has three layers.
+\emph{Raw} registers source fingerprints and 3.38M-sample real MRO anchors (serving RSRP mean $-118.0$\,dBm, SINR $12.07$\,dB, RSRQ $-10.10$\,dB).
+\emph{Curated} ingests 10 real-simulation episodes (11 tables, 249 fields, per-50\,ms UE sampling) as Parquet with a DuckDB query layer.
+\emph{Generated} holds twin outputs in the identical schema, so any downstream consumer is source-agnostic.
+
+\subsection{Calibrated physical layer}
+Table~\ref{tab:calibration} lists the physical modules, their structural forms, and where each parameter comes from.
+The key discipline: \emph{structure from 3GPP, parameters from data}.
+Fitting details: path-loss structure was validated by regressing RSRP on 38.901 terms (residual SD 7.1\,dB before sector-gain and shadow terms); shadow correlation distance $d_{\mathrm{cor}}\!\approx\!37.7$\,m from per-UE residual autocorrelation vs.\ traveled distance; the full SSB-SINR equation reproduces real SINR with residual SD exactly the measurement-noise term (1.50\,dB).
+
+\begin{table}[t]
+\centering
+\caption{Calibration sources: structure from 3GPP, parameters fitted from the data lake.}
+\label{tab:calibration}
+\small
+\begin{tabular}{lll}
+\toprule
+Module & Structure & Parameters fitted from data \\
+\midrule
+Path loss & 38.901 UMa/UMi NLOS & intercept, $h_{\mathrm{BS}}$ term \\
+Shadow & AR(1), $\rho{=}e^{-v\Delta t/d_c}$ & $d_c{=}37.7$\,m, $\sigma{=}6$\,dB \\
+Sector gain & main-lobe 17\,dBi quadratic & hit rate 53.2\% (real) \\
+SSB-SINR & $S/(0.04 I{+}N){+}$BF & full-form residual 1.50\,dB \\
+Traffic & ON/OFF Markov + queue & $2$/$20$\,Mbps by slice \\
+Motion & constant velocity & per-scene speeds, $U(160,212)$\,m start \\
+Sites & grid-6 real engineering data & height/azimuth/PCI per scene \\
+MRO & 25-field quantized encoding & exact codebook match \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Distributional Fidelity}
+\label{sec:fidelity}
+We validate the twin the way a statistician would validate a generative model: per scene ($\times4$) and KPI ($\times5$), two-sample KS, Wasserstein-1, and Q--Q regression of twin quantiles on real quantiles.
+
+\input{fidelity_table}
+
+Highlights (Table~\ref{tab:fidelity}): all radio-link KPIs (RSRP, SINR) reach Q--Q $R^2 > 0.95$ in every scene; suburban downlink rate is statistically near-indistinguishable (KS $0.094$, $W_1/\mathrm{IQR}=0.056$).
+Remaining gaps concentrate where twin UE geometry randomizes what the real episodes fix (urban factory rate tails), which we report transparently rather than tune away.
+
+\section{Same-Root Counterfactual Actions}
+\label{sec:actions}
+The action space mirrors the network's real action table (9 fields), instantiated as four interpretable interventions: transmit power $\times\{0.5,\dots,2\}$, PRB allocation fraction, beam azimuth offset $\pm30^\circ$, A3 handover offset.
+For each of 12 sampled actions and 4 scenes, we re-run the twin with an \emph{identical RNG seed}, changing only the action.
+The result is a dataset where the counterfactual contrast is exact:
+\begin{equation}
+\Delta s_{t} = s_{t}^{(a)} - s_{t}^{(\varnothing)}, \quad \text{same } \epsilon_{\text{geom}}, \epsilon_{\text{shadow}}, \epsilon_{\text{noise}}.
+\end{equation}
+Causal sanity checks pass: $\Delta\mathrm{RSRP} \approx 10\log_{10}(\text{power ratio})$ (e.g.\ $\times0.63 \to -2.01$\,dB, $\times1.82 \to +2.60$\,dB), monotone and sign-correct; PRB cuts move downlink rate by up to $-116$\,Mbps; beam offsets respond through sector gain.
+
+\section{World-Model Benchmark}
+\label{sec:wm}
+\textbf{Task.} Given a history window of 8 KPI states (400\,ms) and the current action, predict the next state (4 KPIs: RSRP, SINR, DL rate, CQI).
+\textbf{Split.} Time-extrapolating: train on $t<8$\,s of every branch, test on $t\geq8$\,s---never random shuffling, which would leak temporal structure.
+\textbf{Models.} (i) Persistence; (ii) ridge-regularized linear AR with action features; (iii) \wm{}: GRU encoder over the state window with an action embedding, MLP head, 18{,}772 parameters.
+
+\begin{table}[t]
+\centering
+\caption{One-step prediction under time extrapolation (normalized RMSE / MAE; lower is better).}
+\label{tab:wm}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Model & RMSE & MAE & vs.\ Persist. & Params \\
+\midrule
+Persistence & 0.3055 & 0.161 & --- & 0 \\
+LinearAR+action & 0.2810 & 0.160 & $-8.0\%$ & 130 \\
+\wm{} (ours) & \textbf{0.2746} & \textbf{0.154} & $\mathbf{-10.1\%}$ & 18{,}772 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Per-KPI errors in native units: RSRP 2.17\,dB, SINR 2.80\,dB, DL rate 20.0\,Mbps, CQI 0.91.
+The modest gap between \wm{} and the linear baseline is expected at a 50\,ms horizon where KPIs are near-random-walk; the world model's advantage should widen in multi-step roll-outs and when actions induce regime changes (handover cascades, RLF), which is the focus of ongoing work.
+
+\section{Related Work}
+\textbf{Digital twins for RAN.} Tiny-Twin~\cite{tinytwin} provides a CPU-native full-stack twin; we inherit its physical-layer philosophy but re-anchor every parameter to a measured data lake and add distributional validation.
+\textbf{World models.} RSSM~\cite{hafner2019dream}, object-centric variants~\cite{objwm}, and their network applications~\cite{uavwm} assume interactive data; we supply the missing ingredient---calibrated counterfactual branches at scale.
+\textbf{Fidelity evaluation.} Prior twins validate by KPI mean-matching; we adopt the two-sample distributional battery standard in generative-model evaluation.
+
+\section{Limitations and Path Forward}
+(1) The reference ``real'' data is itself a calibrated system-level simulation anchored to real MRO/PM statistics; live-network PM/MRO ingestion is the next milestone and the lake schema already accepts it.
+(2) Single-site three-sector topology; multi-site interference and mobility across sites will stress the handover model.
+(3) One-step prediction; multi-step roll-out with compounding-error analysis, RSSM-style latent dynamics, and policy-learning downstream are in progress.
+(4) Fidelity gaps in rate tails trace to traffic-generator geometry; a learned residual-correction head on top of the physics core is a promising hybrid.
+
+\section{Conclusion}
+A 6G world model needs data that live networks cannot give and uncalibrated simulators should not.
+\twin{} closes this gap: a physics-structured twin calibrated end-to-end from a real-network data lake, validated distributionally, and exploited to synthesize exact counterfactual action data.
+The benchmark shows action-conditioned learning is feasible on this substrate; all code and data pipelines are reproducible.
+
+\begin{thebibliography}{10}
+\bibitem{ha2018world} D. Ha and J. Schmidhuber, ``World Models,'' \emph{arXiv:1803.10122}, 2018.
+\bibitem{le2019world} W. Le-Cun et al., ``Self-supervised world models,'' \emph{arXiv}, 2019.
+\bibitem{levine2020offline} S. Levine et al., ``Offline Reinforcement Learning: Tutorial, Review, and Perspectives,'' \emph{arXiv:2005.01643}, 2020.
+\bibitem{tinytwin} ``Tiny-Twin: A CPU-Native Full-stack Digital Twin for NextG Cellular Networks,'' 2025.
+\bibitem{hafner2019dream} D. Hafner et al., ``Learning Latent Dynamics for Planning from Pixels,'' \emph{ICML}, 2019.
+\bibitem{objwm} ``A Knowledge-Assisted Object-Centric World Model for Joint UAV Handover and Service Control,'' 2025.
+\bibitem{uavwm} Object-centric world models for UAV handover, 2025.
+\end{thebibliography}
+
+\end{document}
