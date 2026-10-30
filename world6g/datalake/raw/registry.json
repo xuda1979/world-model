@@ -1,0 +1,559 @@
+{
+ "source_root": "/Users/daxu/software/6G_data_simulation/6G_episode_data/6G_episodes_10s_fullcatalog",
+ "episodes": {
+  "1": {
+   "ue": {
+    "rows": 1200,
+    "sha16": "cbf1942346ca4927"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "8ce5ce4097f0f5b0"
+   },
+   "phy": {
+    "rows": 1200,
+    "sha16": "3abd170a3230bf79"
+   },
+   "link": {
+    "rows": 1200,
+    "sha16": "d8b838f3f8d4cbab"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "f4f40cf00b411300"
+   },
+   "mro": {
+    "rows": 1200,
+    "sha16": "1193db3eb293eba3"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "3a7a9461bbe9513e"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "83681be2917d2e7d"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "d2a112bd126d3857"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "7031e6416af5715c"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "2": {
+   "ue": {
+    "rows": 2000,
+    "sha16": "0d99d283ed4caba6"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "ab658be6b87568f1"
+   },
+   "phy": {
+    "rows": 2000,
+    "sha16": "226e60876504b848"
+   },
+   "link": {
+    "rows": 2000,
+    "sha16": "c41d2ba1e1e494cd"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "58be05459812807e"
+   },
+   "mro": {
+    "rows": 2000,
+    "sha16": "83796d1c09715c2b"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "30dd159528927560"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "2229ca48be0940fd"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "5f9fac5aa12e1806"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "ff85c486ffbd8620"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "3": {
+   "ue": {
+    "rows": 1200,
+    "sha16": "2f14366ba4a171ba"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "38ab5e71c31e51c9"
+   },
+   "phy": {
+    "rows": 1200,
+    "sha16": "3f7ddd45d9361ccf"
+   },
+   "link": {
+    "rows": 1200,
+    "sha16": "c0f94c5cc1a69912"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "a9bc451b1becdf3f"
+   },
+   "mro": {
+    "rows": 1200,
+    "sha16": "1195dac947ec44f0"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "dd353d164d90d46c"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "a57258496d0228a2"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "64d3e2ae81ca2781"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "04cd45007e8d5834"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "4": {
+   "ue": {
+    "rows": 1600,
+    "sha16": "6cc8916dd1ba6b7c"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "23e039894f4825c3"
+   },
+   "phy": {
+    "rows": 1600,
+    "sha16": "576a9ebf8c42b72b"
+   },
+   "link": {
+    "rows": 1600,
+    "sha16": "dde55bc271ba26cc"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "e11a1413b9f53bf6"
+   },
+   "mro": {
+    "rows": 1600,
+    "sha16": "800f41ef451240c9"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "d0c043640021f2fb"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "c0835e30ba3658e7"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "9a5bc07652bb8ba9"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "0c7b0f22cde3ec55"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "5": {
+   "ue": {
+    "rows": 1600,
+    "sha16": "e6e77091649d6d82"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "309ce642c51058d9"
+   },
+   "phy": {
+    "rows": 1600,
+    "sha16": "5f462d8797c9512a"
+   },
+   "link": {
+    "rows": 1600,
+    "sha16": "e872fd9231d7086e"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "79f27dbcbc5b84bd"
+   },
+   "mro": {
+    "rows": 1600,
+    "sha16": "7cbd76c86f3a7ab1"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "87b43eef99b5f81b"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "89c141af10d0c999"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "e845af9bbd7c39a7"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "0ce6d587494ec806"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "6": {
+   "ue": {
+    "rows": 2400,
+    "sha16": "84bdeedbc4a0c8a9"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "a543c95ae3577489"
+   },
+   "phy": {
+    "rows": 2400,
+    "sha16": "dec5e0f2c4a444e4"
+   },
+   "link": {
+    "rows": 2400,
+    "sha16": "5f0d21ef71df6aca"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "80a5c31092f0b1a1"
+   },
+   "mro": {
+    "rows": 2400,
+    "sha16": "07f160fd30898207"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "c16c6fe5cff70955"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "4724eefa0499ecbc"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "a65bf3860084a319"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "2495fbfbcf166011"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "7": {
+   "ue": {
+    "rows": 1600,
+    "sha16": "7ad30644ac290762"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "1035ff1f9458001a"
+   },
+   "phy": {
+    "rows": 1600,
+    "sha16": "80e740ea9e7df2ea"
+   },
+   "link": {
+    "rows": 1600,
+    "sha16": "679b4e35aa3151dd"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "6cb59a939ab929c9"
+   },
+   "mro": {
+    "rows": 1600,
+    "sha16": "312ad41e7d59f2c8"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "3866ea701073ef9d"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "cc671c1702808b47"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "46a3cc0d2e903a80"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "91bba360bff6b075"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "8": {
+   "ue": {
+    "rows": 1200,
+    "sha16": "fb295ce60dea4197"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "5f11d85cfc948f05"
+   },
+   "phy": {
+    "rows": 1200,
+    "sha16": "aa028de067403c9a"
+   },
+   "link": {
+    "rows": 1200,
+    "sha16": "b17974ed43eca66d"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "5c8511ac83f30930"
+   },
+   "mro": {
+    "rows": 1200,
+    "sha16": "b4cdd45fe51bb63c"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "42561b99d9d4901d"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "236f94a79a409a69"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "33b1f8e81c4501b4"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "50ba5824df05f264"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "9": {
+   "ue": {
+    "rows": 2400,
+    "sha16": "9ac8ee379aba738b"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "fe2ad5bc5712284b"
+   },
+   "phy": {
+    "rows": 2400,
+    "sha16": "4fbdba3c7d7c487e"
+   },
+   "link": {
+    "rows": 2400,
+    "sha16": "6b584b2ebb4e81a7"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "ed2758634b9c4cef"
+   },
+   "mro": {
+    "rows": 2400,
+    "sha16": "3145008933cf626a"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "42c43d33a0b0df2a"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "01b8b6ce3b64636e"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "533621c3bad80079"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "6f18dc5ab4108789"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  },
+  "10": {
+   "ue": {
+    "rows": 3200,
+    "sha16": "dbacf165c6a5ad1a"
+   },
+   "cellperf": {
+    "rows": 300,
+    "sha16": "5c7baf19c34a7dd2"
+   },
+   "phy": {
+    "rows": 3200,
+    "sha16": "b57290487bcf801f"
+   },
+   "link": {
+    "rows": 3200,
+    "sha16": "1be035b72acac955"
+   },
+   "sys": {
+    "rows": 2100,
+    "sha16": "ead8ca1407493fe9"
+   },
+   "mro": {
+    "rows": 3200,
+    "sha16": "cad003c8a3d1bb3c"
+   },
+   "action": {
+    "rows": 300,
+    "sha16": "57b4d0b6e04c0ad9"
+   },
+   "site": {
+    "rows": 3,
+    "sha16": "81b07c92c9ec270e"
+   },
+   "map": {
+    "rows": 10,
+    "sha16": "6ea036dbb181b470"
+   },
+   "nrm": {
+    "rows": 3,
+    "sha16": "b07d4f5376a149f2"
+   },
+   "csi": {
+    "rows": 7,
+    "sha16": "56b921d0992e89ac"
+   }
+  }
+ },
+ "tables": {
+  "ue": {
+   "rows": 18400,
+   "cols": 25,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/ue.parquet"
+  },
+  "cellperf": {
+   "rows": 3000,
+   "cols": 19,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/cellperf.parquet"
+  },
+  "phy": {
+   "rows": 18400,
+   "cols": 13,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/phy.parquet"
+  },
+  "link": {
+   "rows": 18400,
+   "cols": 8,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/link.parquet"
+  },
+  "sys": {
+   "rows": 21000,
+   "cols": 6,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/sys.parquet"
+  },
+  "mro": {
+   "rows": 18400,
+   "cols": 28,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/mro.parquet"
+  },
+  "action": {
+   "rows": 3000,
+   "cols": 12,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/action.parquet"
+  },
+  "site": {
+   "rows": 30,
+   "cols": 22,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/site.parquet"
+  },
+  "map": {
+   "rows": 100,
+   "cols": 4,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/map.parquet"
+  },
+  "nrm": {
+   "rows": 30,
+   "cols": 108,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/nrm.parquet"
+  },
+  "csi": {
+   "rows": 70,
+   "cols": 4,
+   "parquet": "/Users/daxu/software/world-model/world6g/datalake/curated/csi.parquet"
+  }
+ },
+ "real_anchors": {
+  "mro_serving_rsrp_dbm": {
+   "n": 360670,
+   "mean": -118.0244420107023,
+   "sd": 5.820271216904095,
+   "min": -148.5,
+   "max": -93.5,
+   "p10": -125.5,
+   "p50": -118.5,
+   "p90": -110.0,
+   "unit": "dBm"
+  },
+  "mro_serving_sinr_db": {
+   "n": 327304,
+   "mean": 12.074901314985457,
+   "sd": 7.236683124192827,
+   "min": -14.5,
+   "max": 40.0,
+   "p10": 2.5,
+   "p50": 12.0,
+   "p90": 23.5,
+   "unit": "dB"
+  },
+  "mro_serving_rsrq_db": {
+   "n": 360670,
+   "mean": -10.100314692100813,
+   "sd": 2.803096377025417,
+   "min": -36.5,
+   "max": 20.5,
+   "p10": -12.5,
+   "p50": -10.5,
+   "p90": -6.0,
+   "unit": "dB"
+  },
+  "n_real_cells_grid6": 626,
+  "n_real_sites_grid6": 118
+ }
+}
