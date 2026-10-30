@@ -5,3 +5,5 @@ world6g/datalake/lake.duckdb
 world6g/datalake/generated/*.parquet
 world6g/datalake/curated/*.parquet
 .DS_Store
+.playwright-mcp/
+*.png

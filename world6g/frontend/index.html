@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6G 数据底座 — 可视化工作台</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #121a2b; --panel2: #182238; --line: #22304d;
+    --txt: #dce6f5; --dim: #8296b8; --acc: #38bdf8; --ok: #34d399; --warn: #fbbf24;
+    --real: #38bdf8; --twin: #f472b6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--txt);
+         font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px;
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header h1 span { color: var(--acc); }
+  header .sub { color: var(--dim); font-size: 12px; }
+  .legend-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+  .legend-chip i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  main { display: grid; grid-template-columns: 250px 1fr; gap: 14px; padding: 14px 22px; }
+  /* 侧栏 */
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 12px; align-self: start; max-height: calc(100vh - 100px); overflow-y: auto; }
+  aside h3 { font-size: 12px; color: var(--dim); font-weight: 500; margin: 8px 0 6px; }
+  .ep-item { padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;
+             border: 1px solid transparent; transition: all .15s; }
+  .ep-item:hover { background: var(--panel2); }
+  .ep-item.active { background: var(--panel2); border-color: var(--acc); }
+  .ep-item .row1 { display: flex; justify-content: space-between; align-items: center; }
+  .ep-item .id { font-size: 13px; font-weight: 600; }
+  .ep-item .src { font-size: 10px; padding: 1px 6px; border-radius: 4px; }
+  .src.real { background: #0c2d3f; color: var(--real); }
+  .src.twin { background: #3f1d31; color: var(--twin); }
+  .ep-item .row2 { font-size: 11px; color: var(--dim); margin-top: 3px; }
+  /* 内容区 */
+  .content { display: flex; flex-direction: column; gap: 14px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+              padding: 14px 16px; }
+  .kpi-card .label { font-size: 11px; color: var(--dim); }
+  .kpi-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi-card .unit { font-size: 12px; color: var(--dim); font-weight: 400; margin-left: 3px; }
+  .kpi-card .hint { font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .panel h2 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--txt); }
+  .panel h2 small { color: var(--dim); font-weight: 400; margin-left: 8px; }
+  .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+  .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .plot { width: 100%; min-height: 260px; }
+  #mapPlot { min-height: 420px; }
+  .metric-tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+  .metric-tabs button { background: var(--panel2); border: 1px solid var(--line); color: var(--dim);
+        font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+  .metric-tabs button.active { color: var(--acc); border-color: var(--acc); }
+  footer { padding: 10px 22px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
+  .badge { display:inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px;
+           background: var(--panel2); border: 1px solid var(--line); color: var(--dim); margin-left: 8px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>6G 数据底座 <span>可视化工作台</span></h1>
+  <span class="sub">Q4 方案一 · 真实仿真数据 × Tiny-Twin 生成数据</span>
+  <div style="margin-left:auto" class="legend-chip">
+    <span><i style="background:var(--real)"></i>真实 (10 episodes)</span>
+    <span style="margin-left:12px"><i style="background:var(--twin)"></i>Tiny-Twin 生成</span>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <h3>Episodes</h3>
+    <div id="epList"></div>
+  </aside>
+
+  <div class="content">
+    <div class="kpis" id="kpiCards"></div>
+
+    <div class="panel">
+      <h2>KPI 时间序列 <small id="tsHint">每 50ms 采样 · 均值 ± P10/P90</small></h2>
+      <div class="metric-tabs" id="metricTabs">
+        <button data-m="rsrp" class="active">RSRP (dBm)</button>
+        <button data-m="sinr">SINR (dB)</button>
+        <button data-m="dl">下行速率 (Mbps)</button>
+        <button data-m="ul">上行速率 (Mbps)</button>
+        <button data-m="latency">端到端时延 (ms)</button>
+        <button data-m="cqi">CQI</button>
+        <button data-m="plr">丢包率</button>
+      </div>
+      <div id="tsPlot" class="plot"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2>网络地图 <small>UE 轨迹 · 颜色=RSRP · 站点三扇区</small></h2>
+        <div id="mapPlot" class="plot"></div>
+      </div>
+      <div class="panel">
+        <h2>小区吞吐量 <small>Mbps / 小区</small></h2>
+        <div id="cellPlot" class="plot"></div>
+      </div>
+    </div>
+
+    <div class="grid2b">
+      <div class="panel">
+        <h2>全 Episode 对比 <small>RSRP × SINR · 真实 vs Twin</small></h2>
+        <div id="cmpPlot" class="plot"></div>
+      </div>
+      <div class="panel">
+        <h2>Tiny-Twin 校准 <small>生成值 vs 真实值域</small></h2>
+        <div id="twinPlot" class="plot"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  数据来源: 6G_data_simulation (10 episodes × 10s × 249 字段, 真实网格6 工参 + 真实 MRO 统计锚定) ·
+  Tiny-Twin: 38.901 路损 / AR(1) 阴影 / A3 切换 / SSB-SINR 物理链路孪生 ·
+  <span class="badge">DuckDB + Parquet</span><span class="badge">FastAPI</span><span class="badge">Plotly</span>
+</footer>
+
+<script>
+const API = '';
+let EPS = [], CUR = null, METRIC = 'rsrp';
+
+const fmt = (v, d=1) => v==null ? '—' : v.toFixed(d);
+
+async function jget(url) { const r = await fetch(url); if (!r.ok) throw new Error(url+': '+r.status); return r.json(); }
+
+async function loadEpisodes() {
+  EPS = await jget(API + '/api/episodes');
+  renderEpList();
+  renderCompare();
+  renderTwinCal();
+  if (EPS.length) selectEp(EPS[0].id);
+}
+
+function renderEpList() {
+  const el = document.getElementById('epList');
+  el.innerHTML = '';
+  for (const e of EPS) {
+    const d = document.createElement('div');
+    d.className = 'ep-item' + (CUR === e.id ? ' active' : '');
+    d.innerHTML = `<div class="row1"><span class="id">${e.id}</span>
+      <span class="src ${e.source}">${e.source === 'real' ? '真实' : 'Twin'}</span></div>
+      <div class="row2">${e.scene} · ${e.n_ue} UE · RSRP ${fmt(e.rsrp)} · SINR ${fmt(e.sinr)}</div>`;
+    d.onclick = () => selectEp(e.id);
+    el.appendChild(d);
+  }
+}
+
+function kpiCard(label, value, unit, hint, color) {
+  return `<div class="kpi-card"><div class="label">${label}</div>
+    <div class="value" style="color:${color||'var(--txt)'}">${value}<span class="unit">${unit||''}</span></div>
+    <div class="hint">${hint||''}</div></div>`;
+}
+
+async function selectEp(id) {
+  CUR = id; renderEpList();
+  const e = EPS.find(x => x.id === id);
+  document.getElementById('kpiCards').innerHTML =
+    kpiCard('平均 RSRP', fmt(e.rsrp), 'dBm', '服务小区参考信号接收功率') +
+    kpiCard('平均 SINR', fmt(e.sinr), 'dB', '信干噪比') +
+    kpiCard('平均下行速率', fmt(e.dl), 'Mbps', e.source === 'twin' ? 'Tiny-Twin 生成' : '真实仿真数据') +
+    kpiCard('场景', e.scene, '', `${e.n_ue} 终端 · ${e.source === 'real' ? '真实 episode' : 'Twin 生成'}`);
+  await Promise.all([loadKpi(), loadMap()]);
+}
+
+async function loadKpi() {
+  const d = await jget(`${API}/api/kpi/${CUR}?metric=${METRIC}`);
+  const traces = [
+    { x: d.ts.t, y: d.ts.p10, mode: 'lines', line: {width: 0}, hoverinfo: 'skip', name: 'P10' },
+    { x: d.ts.t, y: d.ts.p90, mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(56,189,248,0.13)',
+      line: {width: 0}, hoverinfo: 'skip', name: 'P90' },
+    { x: d.ts.t, y: d.ts.mean, mode: 'lines', name: '均值',
+      line: {color: '#38bdf8', width: 2.5} },
+  ];
+  let i = 0;
+  for (const [ue, s] of Object.entries(d.per_ue)) {
+    traces.push({ x: s.t, y: s.v, mode: 'lines', name: 'UE ' + ue, visible: 'legendonly',
+      line: {width: 1.2, color: PLOTLY_COLORS[i % PLOTLY_COLORS.length]} });
+    i++;
+  }
+  Plotly.react('tsPlot', traces, tsLayout(d.metric), {displayModeBar: false});
+
+  // 小区吞吐
+  const ct = [];
+  let j = 0;
+  for (const [cell, s] of Object.entries(d.cell_throughput)) {
+    ct.push({ x: s.t, y: s.v, mode: 'lines', name: cell.slice(-12),
+      line: {width: 2, color: PLOTLY_COLORS[j % PLOTLY_COLORS.length]} });
+    j++;
+  }
+  Plotly.react('cellPlot', ct, cellLayout(), {displayModeBar: false});
+}
+
+const PLOTLY_COLORS = ['#38bdf8','#f472b6','#34d399','#fbbf24','#a78bfa','#fb7185',
+                       '#22d3ee','#facc15','#4ade80','#e879f9','#60a5fa','#f87171'];
+
+const BASE = { paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+  font: {color: '#8296b8', size: 11}, margin: {l: 46, r: 12, t: 8, b: 32},
+  xaxis: {gridcolor: '#22304d', zeroline: false},
+  yaxis: {gridcolor: '#22304d', zeroline: false},
+  legend: {orientation: 'h', y: -0.22, font: {size: 10}},
+  showlegend: true };
+
+function tsLayout(metric) { return {...BASE, yaxis: {...BASE.yaxis, title: {text: metric, font: {size: 11}}},
+  xaxis: {...BASE.xaxis, title: {text: '时间 (ms)', font: {size: 11}}}}; }
+function cellLayout() { return {...BASE, yaxis: {...BASE.yaxis, title: {text: 'Mbps', font: {size: 11}}},
+  xaxis: {...BASE.xaxis, title: {text: '时间 (ms)', font: {size: 11}}}}; }
+
+async function loadMap() {
+  const d = await jget(`${API}/api/map/${CUR}`);
+  const traces = [];
+  let i = 0;
+  for (const tr of d.traces) {
+    traces.push({ x: tr.x, y: tr.y, mode: 'lines+markers', name: `${tr.type} ${tr.ue}`,
+      marker: {size: 3, color: tr.rsrp, colorscale: 'Turbo', cmin: -140, cmax: -85,
+               showscale: i === 0, colorbar: {title: {text: 'RSRP dBm', font: {size: 10}}, thickness: 10,
+               len: 0.75, tickfont: {size: 9}}},
+      line: {width: 1.4, color: PLOTLY_COLORS[i % PLOTLY_COLORS.length]},
+      text: tr.rsrp.map((r, k) => `RSRP ${r} dBm · SINR ${tr.sinr[k]} dB · ${tr.cell[k]}`),
+      hovertemplate: '%{text}<extra>%{fullData.name}</extra>' });
+    i++;
+  }
+  // 站点扇区
+  for (const s of d.sites) {
+    const r = 60, a0 = (s.az - 30) * Math.PI / 180, a1 = (s.az + 30) * Math.PI / 180;
+    traces.push({ x: [0, r*Math.cos(a0), r*Math.cos(a1), 0], y: [0, r*Math.sin(a0), r*Math.sin(a1), 0],
+      fill: 'toself', fillcolor: 'rgba(56,189,248,0.10)', line: {color: '#38bdf8', width: 1},
+      mode: 'lines', name: 'PCI ' + s.pci, hovertemplate: `${s.cell}<br>PCI ${s.pci} · 方位 ${s.az.toFixed(0)}°<extra></extra>` });
+  }
+  if (!d.sites.length) {  // twin: 站点在原点 (三扇区从生成配置)
+    for (let k = 0; k < 3; k++) {
+      const az0 = (k*120 - 30) * Math.PI/180, az1 = (k*120 + 30) * Math.PI/180, r = 60;
+      traces.push({ x: [0, r*Math.cos(az0), r*Math.cos(az1), 0], y: [0, r*Math.sin(az0), r*Math.sin(az1), 0],
+        fill: 'toself', fillcolor: 'rgba(244,114,182,0.10)', line: {color: '#f472b6', width: 1},
+        mode: 'lines', name: 'Twin 扇区 ' + (k+1), hovertemplate: 'Tiny-Twin 扇区<extra></extra>' });
+    }
+  }
+  Plotly.react('mapPlot', traces, {...BASE, yaxis: {...BASE.yaxis, title: {text: 'Y (m)', font: {size: 11}}, scaleanchor: 'x', scaleratio: 1},
+    xaxis: {...BASE.xaxis, title: {text: 'X (m)', font: {size: 11}}}}, {displayModeBar: false});
+}
+
+function renderCompare() {
+  const real = EPS.filter(e => e.source === 'real'), twin = EPS.filter(e => e.source === 'twin');
+  const mk = (arr, name, color, sym) => ({ x: arr.map(e => e.rsrp), y: arr.map(e => e.sinr),
+    mode: 'markers', name, marker: {size: 10, color, symbol: sym, line: {width: 1, color: '#0b1220'}},
+    text: arr.map(e => `${e.id} · ${e.scene}`), hovertemplate: '%{text}<extra></extra>' });
+  Plotly.react('cmpPlot', [mk(real, '真实', '#38bdf8', 'circle'), mk(twin, 'Tiny-Twin', '#f472b6', 'diamond')],
+    {...BASE, xaxis: {...BASE.xaxis, title: {text: 'RSRP (dBm)', font: {size: 11}}},
+     yaxis: {...BASE.yaxis, title: {text: 'SINR (dB)', font: {size: 11}}}}, {displayModeBar: false});
+}
+
+async function renderTwinCal() {
+  const rep = await jget(API + '/api/twin/report');
+  const byScene = {};
+  for (const r of rep) {
+    (byScene[r.scene] = byScene[r.scene] || {twin: [], real: []}).twin.push(r.rsrp_mean);
+    for (const rr of r.real_ref) byScene[r.scene].real.push(rr.rsrp);
+  }
+  const scenes = Object.keys(byScene);
+  const traces = [];
+  scenes.forEach((sc, i) => {
+    const b = byScene[sc];
+    traces.push({ x: scenes.map(() => sc), y: [Math.min(...b.real)], type: 'box',
+      marker: {color: 'rgba(0,0,0,0)'}, showlegend: false, hoverinfo: 'skip' });
+  });
+  // 用散点: 真实范围 (横线) vs twin 点
+  const realLo = scenes.map(sc => Math.min(...byScene[sc].real));
+  const realHi = scenes.map(sc => Math.max(...byScene[sc].real));
+  const realMid = scenes.map((sc, i) => (realLo[i] + realHi[i]) / 2);
+  traces.length = 0;
+  traces.push({ x: scenes, y: realMid, error_y: {type: 'data', symmetric: false,
+      array: scenes.map((sc,i) => realHi[i]-realMid[i]), arrayminus: scenes.map((sc,i) => realMid[i]-realLo[i]),
+      color: '#38bdf8', thickness: 2, width: 14},
+    mode: 'markers', name: '真实值域', marker: {color: '#38bdf8', size: 8, symbol: 'line-ns-open'} });
+  const tPts = {x: [], y: []};
+  scenes.forEach(sc => rep.filter(r => r.scene === sc).forEach(r => { tPts.x.push(sc); tPts.y.push(r.rsrp_mean); }));
+  traces.push({ x: tPts.x, y: tPts.y, mode: 'markers', name: 'Twin 生成',
+    marker: {color: '#f472b6', size: 11, symbol: 'diamond'} });
+  Plotly.react('twinPlot', traces, {...BASE, yaxis: {...BASE.yaxis, title: {text: 'RSRP (dBm)', font: {size: 11}}}},
+    {displayModeBar: false});
+}
+
+document.getElementById('metricTabs').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#metricTabs button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); METRIC = b.dataset.m; loadKpi();
+});
+
+loadEpisodes();
+</script>
+</body>
+</html>
