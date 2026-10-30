@@ -1,0 +1,482 @@
+[
+ {
+  "scene": "城区",
+  "action": "az-7°",
+  "type": "az_offset",
+  "value": -7.031004572950311,
+  "mean_Δrsrp": 0.74,
+  "mean_Δsinr": 0.65,
+  "mean_Δdl": 2.65,
+  "mean_Δcqi": -0.01
+ },
+ {
+  "scene": "城区",
+  "action": "az+28°",
+  "type": "az_offset",
+  "value": 27.813472046340586,
+  "mean_Δrsrp": 1.07,
+  "mean_Δsinr": 0.91,
+  "mean_Δdl": 6.5,
+  "mean_Δcqi": 0.05
+ },
+ {
+  "scene": "城区",
+  "action": "pwr×0.80",
+  "type": "pmax_scale",
+  "value": 0.7977910499694408,
+  "mean_Δrsrp": -0.98,
+  "mean_Δsinr": -0.75,
+  "mean_Δdl": -4.34,
+  "mean_Δcqi": -0.04
+ },
+ {
+  "scene": "城区",
+  "action": "az+2°",
+  "type": "az_offset",
+  "value": 2.375526205898053,
+  "mean_Δrsrp": -0.18,
+  "mean_Δsinr": -0.16,
+  "mean_Δdl": -0.42,
+  "mean_Δcqi": 0.01
+ },
+ {
+  "scene": "城区",
+  "action": "az-4°",
+  "type": "az_offset",
+  "value": -4.15087193645185,
+  "mean_Δrsrp": 0.36,
+  "mean_Δsinr": 0.31,
+  "mean_Δdl": 1.08,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "城区",
+  "action": "pwr×0.63",
+  "type": "pmax_scale",
+  "value": 0.6294295439391654,
+  "mean_Δrsrp": -2.01,
+  "mean_Δsinr": -1.57,
+  "mean_Δdl": -9.34,
+  "mean_Δcqi": -0.08
+ },
+ {
+  "scene": "城区",
+  "action": "ho4.4dB",
+  "type": "ho_offset",
+  "value": 4.399693014232354,
+  "mean_Δrsrp": -0.1,
+  "mean_Δsinr": -0.14,
+  "mean_Δdl": -1.36,
+  "mean_Δcqi": -0.01
+ },
+ {
+  "scene": "城区",
+  "action": "az-24°",
+  "type": "az_offset",
+  "value": -23.684380570145088,
+  "mean_Δrsrp": 2.92,
+  "mean_Δsinr": 2.31,
+  "mean_Δdl": 9.6,
+  "mean_Δcqi": 0.09
+ },
+ {
+  "scene": "城区",
+  "action": "pwr×1.82",
+  "type": "pmax_scale",
+  "value": 1.8198403173590616,
+  "mean_Δrsrp": 2.6,
+  "mean_Δsinr": 1.84,
+  "mean_Δdl": 9.91,
+  "mean_Δcqi": 0.08
+ },
+ {
+  "scene": "城区",
+  "action": "prb×0.28",
+  "type": "prb_scale",
+  "value": 0.27538412007944985,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -139.83,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "城区",
+  "action": "pwr×0.99",
+  "type": "pmax_scale",
+  "value": 0.9859546411859735,
+  "mean_Δrsrp": -0.06,
+  "mean_Δsinr": -0.05,
+  "mean_Δdl": -0.33,
+  "mean_Δcqi": -0.0
+ },
+ {
+  "scene": "城区",
+  "action": "prb×0.33",
+  "type": "prb_scale",
+  "value": 0.327425165733199,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -129.94,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "郊区",
+  "action": "az-7°",
+  "type": "az_offset",
+  "value": -7.031004572950311,
+  "mean_Δrsrp": 1.47,
+  "mean_Δsinr": 1.36,
+  "mean_Δdl": 6.76,
+  "mean_Δcqi": 0.13
+ },
+ {
+  "scene": "郊区",
+  "action": "az+28°",
+  "type": "az_offset",
+  "value": 27.813472046340586,
+  "mean_Δrsrp": -1.6,
+  "mean_Δsinr": -2.1,
+  "mean_Δdl": -14.93,
+  "mean_Δcqi": -0.16
+ },
+ {
+  "scene": "郊区",
+  "action": "pwr×0.80",
+  "type": "pmax_scale",
+  "value": 0.7977910499694408,
+  "mean_Δrsrp": -0.98,
+  "mean_Δsinr": -0.54,
+  "mean_Δdl": -3.33,
+  "mean_Δcqi": -0.06
+ },
+ {
+  "scene": "郊区",
+  "action": "az+2°",
+  "type": "az_offset",
+  "value": 2.375526205898053,
+  "mean_Δrsrp": -0.4,
+  "mean_Δsinr": -0.39,
+  "mean_Δdl": -1.83,
+  "mean_Δcqi": -0.07
+ },
+ {
+  "scene": "郊区",
+  "action": "az-4°",
+  "type": "az_offset",
+  "value": -4.15087193645185,
+  "mean_Δrsrp": 0.79,
+  "mean_Δsinr": 0.72,
+  "mean_Δdl": 3.35,
+  "mean_Δcqi": 0.1
+ },
+ {
+  "scene": "郊区",
+  "action": "pwr×0.63",
+  "type": "pmax_scale",
+  "value": 0.6294295439391654,
+  "mean_Δrsrp": -2.01,
+  "mean_Δsinr": -1.14,
+  "mean_Δdl": -6.74,
+  "mean_Δcqi": -0.13
+ },
+ {
+  "scene": "郊区",
+  "action": "ho4.4dB",
+  "type": "ho_offset",
+  "value": 4.399693014232354,
+  "mean_Δrsrp": -0.17,
+  "mean_Δsinr": -0.25,
+  "mean_Δdl": -2.12,
+  "mean_Δcqi": -0.02
+ },
+ {
+  "scene": "郊区",
+  "action": "az-24°",
+  "type": "az_offset",
+  "value": -23.684380570145088,
+  "mean_Δrsrp": 5.38,
+  "mean_Δsinr": 4.61,
+  "mean_Δdl": 24.83,
+  "mean_Δcqi": 0.18
+ },
+ {
+  "scene": "郊区",
+  "action": "pwr×1.82",
+  "type": "pmax_scale",
+  "value": 1.8198403173590616,
+  "mean_Δrsrp": 2.6,
+  "mean_Δsinr": 1.31,
+  "mean_Δdl": 7.8,
+  "mean_Δcqi": 0.12
+ },
+ {
+  "scene": "郊区",
+  "action": "prb×0.28",
+  "type": "prb_scale",
+  "value": 0.27538412007944985,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -141.16,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "郊区",
+  "action": "pwr×0.99",
+  "type": "pmax_scale",
+  "value": 0.9859546411859735,
+  "mean_Δrsrp": -0.06,
+  "mean_Δsinr": -0.03,
+  "mean_Δdl": -0.19,
+  "mean_Δcqi": -0.0
+ },
+ {
+  "scene": "郊区",
+  "action": "prb×0.33",
+  "type": "prb_scale",
+  "value": 0.327425165733199,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -131.18,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "低空",
+  "action": "az-7°",
+  "type": "az_offset",
+  "value": -7.031004572950311,
+  "mean_Δrsrp": -0.8,
+  "mean_Δsinr": -0.82,
+  "mean_Δdl": -3.07,
+  "mean_Δcqi": -0.37
+ },
+ {
+  "scene": "低空",
+  "action": "az+28°",
+  "type": "az_offset",
+  "value": 27.813472046340586,
+  "mean_Δrsrp": 3.49,
+  "mean_Δsinr": 3.56,
+  "mean_Δdl": 17.68,
+  "mean_Δcqi": 2.21
+ },
+ {
+  "scene": "低空",
+  "action": "pwr×0.80",
+  "type": "pmax_scale",
+  "value": 0.7977910499694408,
+  "mean_Δrsrp": -0.98,
+  "mean_Δsinr": -0.92,
+  "mean_Δdl": -4.81,
+  "mean_Δcqi": -0.26
+ },
+ {
+  "scene": "低空",
+  "action": "az+2°",
+  "type": "az_offset",
+  "value": 2.375526205898053,
+  "mean_Δrsrp": 0.38,
+  "mean_Δsinr": 0.39,
+  "mean_Δdl": 1.05,
+  "mean_Δcqi": 0.2
+ },
+ {
+  "scene": "低空",
+  "action": "az-4°",
+  "type": "az_offset",
+  "value": -4.15087193645185,
+  "mean_Δrsrp": -0.57,
+  "mean_Δsinr": -0.59,
+  "mean_Δdl": -2.06,
+  "mean_Δcqi": -0.29
+ },
+ {
+  "scene": "低空",
+  "action": "pwr×0.63",
+  "type": "pmax_scale",
+  "value": 0.6294295439391654,
+  "mean_Δrsrp": -2.01,
+  "mean_Δsinr": -1.88,
+  "mean_Δdl": -10.03,
+  "mean_Δcqi": -0.53
+ },
+ {
+  "scene": "低空",
+  "action": "ho4.4dB",
+  "type": "ho_offset",
+  "value": 4.399693014232354,
+  "mean_Δrsrp": -0.08,
+  "mean_Δsinr": -0.08,
+  "mean_Δdl": -0.15,
+  "mean_Δcqi": -0.03
+ },
+ {
+  "scene": "低空",
+  "action": "az-24°",
+  "type": "az_offset",
+  "value": -23.684380570145088,
+  "mean_Δrsrp": -1.08,
+  "mean_Δsinr": -1.12,
+  "mean_Δdl": -4.22,
+  "mean_Δcqi": -0.39
+ },
+ {
+  "scene": "低空",
+  "action": "pwr×1.82",
+  "type": "pmax_scale",
+  "value": 1.8198403173590616,
+  "mean_Δrsrp": 2.6,
+  "mean_Δsinr": 2.4,
+  "mean_Δdl": 12.72,
+  "mean_Δcqi": 0.64
+ },
+ {
+  "scene": "低空",
+  "action": "prb×0.28",
+  "type": "prb_scale",
+  "value": 0.27538412007944985,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -82.48,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "低空",
+  "action": "pwr×0.99",
+  "type": "pmax_scale",
+  "value": 0.9859546411859735,
+  "mean_Δrsrp": -0.06,
+  "mean_Δsinr": -0.06,
+  "mean_Δdl": -0.43,
+  "mean_Δcqi": -0.02
+ },
+ {
+  "scene": "低空",
+  "action": "prb×0.33",
+  "type": "prb_scale",
+  "value": 0.327425165733199,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -76.65,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "az-7°",
+  "type": "az_offset",
+  "value": -7.031004572950311,
+  "mean_Δrsrp": 1.06,
+  "mean_Δsinr": 1.06,
+  "mean_Δdl": 2.47,
+  "mean_Δcqi": -0.05
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "az+28°",
+  "type": "az_offset",
+  "value": 27.813472046340586,
+  "mean_Δrsrp": 7.03,
+  "mean_Δsinr": 6.85,
+  "mean_Δdl": 43.62,
+  "mean_Δcqi": 0.03
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "pwr×0.80",
+  "type": "pmax_scale",
+  "value": 0.7977910499694408,
+  "mean_Δrsrp": -0.98,
+  "mean_Δsinr": -0.91,
+  "mean_Δdl": -6.92,
+  "mean_Δcqi": -0.03
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "az+2°",
+  "type": "az_offset",
+  "value": 2.375526205898053,
+  "mean_Δrsrp": -0.17,
+  "mean_Δsinr": -0.17,
+  "mean_Δdl": -0.32,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "az-4°",
+  "type": "az_offset",
+  "value": -4.15087193645185,
+  "mean_Δrsrp": 0.55,
+  "mean_Δsinr": 0.55,
+  "mean_Δdl": 1.3,
+  "mean_Δcqi": -0.03
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "pwr×0.63",
+  "type": "pmax_scale",
+  "value": 0.6294295439391654,
+  "mean_Δrsrp": -2.01,
+  "mean_Δsinr": -1.88,
+  "mean_Δdl": -15.09,
+  "mean_Δcqi": -0.09
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "ho4.4dB",
+  "type": "ho_offset",
+  "value": 4.399693014232354,
+  "mean_Δrsrp": -0.01,
+  "mean_Δsinr": -0.01,
+  "mean_Δdl": -0.08,
+  "mean_Δcqi": -0.01
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "az-24°",
+  "type": "az_offset",
+  "value": -23.684380570145088,
+  "mean_Δrsrp": 6.62,
+  "mean_Δsinr": 5.71,
+  "mean_Δdl": 21.81,
+  "mean_Δcqi": 0.04
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "pwr×1.82",
+  "type": "pmax_scale",
+  "value": 1.8198403173590616,
+  "mean_Δrsrp": 2.6,
+  "mean_Δsinr": 2.35,
+  "mean_Δdl": 17.42,
+  "mean_Δcqi": 0.03
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "prb×0.28",
+  "type": "prb_scale",
+  "value": 0.27538412007944985,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -119.47,
+  "mean_Δcqi": 0.0
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "pwr×0.99",
+  "type": "pmax_scale",
+  "value": 0.9859546411859735,
+  "mean_Δrsrp": -0.06,
+  "mean_Δsinr": -0.06,
+  "mean_Δdl": -0.52,
+  "mean_Δcqi": -0.0
+ },
+ {
+  "scene": "机器人工厂",
+  "action": "prb×0.33",
+  "type": "prb_scale",
+  "value": 0.327425165733199,
+  "mean_Δrsrp": 0.0,
+  "mean_Δsinr": 0.0,
+  "mean_Δdl": -111.02,
+  "mean_Δcqi": 0.0
+ }
+]

@@ -133,6 +133,10 @@ class TinyTwin:
         # 时间轴
         self.ue_ts = np.arange(0, self.ep_ms, UE_STEP_MS)          # 50ms
         self.cell_ts = np.arange(0, self.ep_ms, CELL_STEP_MS)      # 100ms
+        # 动作族干预钩子 (基准值; generate_actions.py 覆写以生成同根分支)
+        self.tx_scale_db = 0.0       # 发射功率调整 (dB)
+        self.prb_scale = 1.0         # PRB 资源比例
+        self.ho_offset_db = HO_OFFSET_DB   # A3 offset
         # 工参 (真实网格6 抽样站点)
         self._load_real_site()
         # 终端
@@ -213,7 +217,7 @@ class TinyTwin:
 
     def rx_power_re_dbm(self, ux, uy, uz, cell, shadow=0.0) -> float:
         d3d = math.sqrt((ux - cell["x"]) ** 2 + (uy - cell["y"]) ** 2 + (uz - cell["h"]) ** 2)
-        return (TX_POWER_DBM - RSRP_CAL_DB - self.path_loss_db(d3d, cell["h"])
+        return (TX_POWER_DBM + self.tx_scale_db - RSRP_CAL_DB - self.path_loss_db(d3d, cell["h"])
                 + self.antenna_gain_db(ux, uy, cell) + shadow)
 
     # ---------- 业务模型 ----------
@@ -274,7 +278,7 @@ class TinyTwin:
             for j in range(nm):
                 s = srv[j]
                 best = int(np.argmax(l3[j]))
-                if best != s and l3[j, best] - l3[j, s] >= HO_OFFSET_DB + HO_HYST_DB:
+                if best != s and l3[j, best] - l3[j, s] >= self.ho_offset_db + HO_HYST_DB:
                     # TTT 简化: 50ms 步长 < TTT 160ms, 用 3 步判定
                     ok = True
                     for k in (1, 2, 3):
@@ -307,7 +311,7 @@ class TinyTwin:
                 # dl = BW × (prb_ue/N_PRB) × se × (1-BLER) × U(0.85,1)
                 # prb_ue = N_PRB / max(1, n_ue/n_cell) — 小区内均分
                 bler = max(1e-6, min(0.5, 10 ** (-1.0 - sinr / 20.0)))
-                prb_ue = max(1, N_PRB // max(1, self.n_ue // self.n_cell))
+                prb_ue = max(1, round(N_PRB * self.prb_scale) // max(1, self.n_ue // self.n_cell))
                 dl = (BW_MHZ * (prb_ue / N_PRB) * se * (1 - bler)
                       * rng.uniform(0.85, 1.0)) * (0.0 if rlf else 1.0)
                 ul = dl * (0.35 if not urllc else 0.5)
