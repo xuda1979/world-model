@@ -2,9 +2,9 @@
  {
   "gen_episode": "twin_01",
   "scene": "城区",
-  "rsrp_mean": -107.9,
-  "sinr_mean": 21.9,
-  "dl_mean": 29.8,
+  "rsrp_mean": -109.4,
+  "sinr_mean": 20.1,
+  "dl_mean": 175.0,
   "real_ref": [
    {
     "episode": 1,
@@ -35,9 +35,9 @@
  {
   "gen_episode": "twin_02",
   "scene": "城区",
-  "rsrp_mean": -100.5,
-  "sinr_mean": 27.3,
-  "dl_mean": 29.9,
+  "rsrp_mean": -103.9,
+  "sinr_mean": 24.8,
+  "dl_mean": 200.4,
   "real_ref": [
    {
     "episode": 1,
@@ -68,9 +68,9 @@
  {
   "gen_episode": "twin_03",
   "scene": "郊区",
-  "rsrp_mean": -113.0,
-  "sinr_mean": 17.3,
-  "dl_mean": 28.5,
+  "rsrp_mean": -114.1,
+  "sinr_mean": 16.1,
+  "dl_mean": 146.0,
   "real_ref": [
    {
     "episode": 3,
@@ -89,9 +89,9 @@
  {
   "gen_episode": "twin_04",
   "scene": "郊区",
-  "rsrp_mean": -116.4,
-  "sinr_mean": 13.7,
-  "dl_mean": 27.5,
+  "rsrp_mean": -118.2,
+  "sinr_mean": 11.8,
+  "dl_mean": 115.7,
   "real_ref": [
    {
     "episode": 3,
@@ -110,9 +110,9 @@
  {
   "gen_episode": "twin_05",
   "scene": "低空",
-  "rsrp_mean": -128.8,
-  "sinr_mean": 1.8,
-  "dl_mean": 1.1,
+  "rsrp_mean": -128.6,
+  "sinr_mean": 2.0,
+  "dl_mean": 63.1,
   "real_ref": [
    {
     "episode": 4,
@@ -131,9 +131,9 @@
  {
   "gen_episode": "twin_06",
   "scene": "低空",
-  "rsrp_mean": -131.1,
-  "sinr_mean": -0.6,
-  "dl_mean": 0.9,
+  "rsrp_mean": -130.8,
+  "sinr_mean": -0.3,
+  "dl_mean": 58.2,
   "real_ref": [
    {
     "episode": 4,
@@ -152,9 +152,9 @@
  {
   "gen_episode": "twin_07",
   "scene": "机器人工厂",
-  "rsrp_mean": -100.9,
-  "sinr_mean": 28.3,
-  "dl_mean": 1.5,
+  "rsrp_mean": -104.9,
+  "sinr_mean": 24.5,
+  "dl_mean": 201.4,
   "real_ref": [
    {
     "episode": 5,
@@ -173,9 +173,9 @@
  {
   "gen_episode": "twin_08",
   "scene": "机器人工厂",
-  "rsrp_mean": -113.4,
-  "sinr_mean": 16.8,
-  "dl_mean": 1.5,
+  "rsrp_mean": -114.0,
+  "sinr_mean": 16.0,
+  "dl_mean": 144.0,
   "real_ref": [
    {
     "episode": 5,

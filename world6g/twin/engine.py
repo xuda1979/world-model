@@ -48,6 +48,7 @@ RLF_SINR_DB = -8.0           # 无线链路失败门限
 L3_A = 0.25                  # L3 滤波系数
 HO_OFFSET_DB, HO_HYST_DB, HO_TTT_S = 3.0, 1.0, 0.16
 N_PRB = 273                  # 100MHz NRB
+BW_MHZ = 100.0               # 载波带宽
 SCENE_SPEED = {"城区": 16.7, "郊区": 27.8, "低空": 83.3, "机器人工厂": 2.8}
 MCS_TABLE = [  # (mcs, sinr_thr_db, spec_eff bit/s/Hz, mod_bits)
     (0, -12.0, 0.15, 2), (1, -10.0, 0.19, 2), (2, -8.5, 0.23, 2), (3, -6.5, 0.30, 2),
@@ -59,6 +60,45 @@ MCS_TABLE = [  # (mcs, sinr_thr_db, spec_eff bit/s/Hz, mod_bits)
     (21, 18.0, 3.902, 8), (22, 21.0, 4.523, 8), (23, 24.0, 5.115, 8), (24, 27.0, 5.554, 8)]
 CQI_SINR_EDGES = [-14.9, -9.9, -8.5, -7.1, -5.7, -4.3, -2.9, -1.5, -0.1,
                   1.3, 2.7, 4.1, 5.5, 6.9, 8.3]  # 湖中 CQI-SINR 边界 (含 40.5 截断)
+
+
+class TrafficGen:
+    """ON/OFF 马尔可夫突发到达 + 有限队列 → 时延/丢包动态。
+    与真实数据生成器同构: 因果链 SINR→MCS→服务速率→队列→时延/丢包 (可学习)"""
+
+    def __init__(self, biz: str, rng, mean_rate_mbps: float):
+        self.urllc = ("超可靠" in biz) or ("uRLLC" in biz)
+        self.mean_rate = mean_rate_mbps
+        self.rng = rng
+        self.queue_kb = 0.0
+        self.on = bool(rng.random() < 0.5)
+        self.phase_t = rng.exponential(1.0)
+        self.mult = rng.uniform(1.5, 2.5) if self.on else rng.uniform(0.2, 0.5)
+        self.last_delay = 0.0
+        self.last_plr = 0.0
+
+    def step(self, dt_s: float, service_rate_mbps: float):
+        self.phase_t -= dt_s
+        if self.phase_t <= 0:
+            self.on = not self.on
+            self.phase_t = self.rng.exponential(1.0)
+            self.mult = self.rng.uniform(1.5, 2.5) if self.on else self.rng.uniform(0.2, 0.5)
+        lam = self.mean_rate * self.mult * dt_s * 1000.0 / 8.0   # KB 均值
+        arrive = min(self.rng.pareto(1.5) * lam, lam * 8) if lam > 0 else 0.0
+        self.queue_kb += arrive
+        served = min(self.queue_kb, service_rate_mbps * dt_s * 1000.0 / 8.0)
+        self.queue_kb -= served
+        cap = 32.0 if self.urllc else 128.0
+        drop = 0.0
+        if self.queue_kb > cap:
+            drop = self.queue_kb - cap
+            self.queue_kb = cap
+        if self.urllc:
+            delay = self.rng.uniform(0.3, 0.8) + (self.queue_kb * 8 / max(1e-9, service_rate_mbps))
+        else:
+            delay = 1.0 + self.rng.uniform(0.5, 2.0) + (self.queue_kb * 8 / max(1e-9, service_rate_mbps))
+        self.last_delay = delay
+        self.last_plr = drop / max(arrive + served, 1e-9)
 
 
 def mcs_from_sinr(sinr: float):
@@ -151,6 +191,11 @@ class TinyTwin:
                 "z0": (50.0 if self.scene == "低空" else 1.5) + rng.uniform(0, 10),
                 "hdg": hdg, "spd": spd,
             })
+        # 业务流量发生器 (ON/OFF 马尔可夫, 每终端一份; uRLLC 2Mbps / eMBB 20Mbps)
+        biz = self.biz_of(self.scene)
+        urllc = ("uRLLC" in biz) or ("超可靠" in biz)
+        self.traffic = [TrafficGen(biz, rng, 2.0 if urllc else 20.0)
+                        for _ in range(self.n_ue)]
 
     # ---------- 物理链路 ----------
     def path_loss_db(self, d3d: float, h_bs: float) -> float:
@@ -258,18 +303,19 @@ class TinyTwin:
                 rlf = sinr < RLF_SINR_DB
                 mcs = mcs_from_sinr(sinr) if not rlf else MCS_TABLE[0]
                 se, mbits = mcs[2], mcs[3]
-                # 速率: 目标业务速率 vs 链路可达 (100MHz)
-                dl_cap = se * 100e6 / 1e6  # Mbps
-                svc_rate = 20.0 if not urllc else 2.0
-                dl = min(svc_rate * rng.uniform(0.5, 1.0) * (2.0 if not urllc else 1.0),
-                         dl_cap) * (0.0 if rlf else 1.0)
-                ul = dl * 0.35 if not urllc else dl * 0.5
-                if rlf:
-                    lat, plr = 999.0, 1.0
-                else:
-                    lat = rng.uniform(0.3, 0.8) + (rng.uniform(1, 60) if not urllc else rng.uniform(0.05, 0.3)) \
-                        if urllc else rng.uniform(1.0, 15.0)
-                    plr = max(1e-6, 10 ** (-1.0 - sinr / 20.0))
+                # 速率: 链路可达速率 (与真实生成器同构):
+                # dl = BW × (prb_ue/N_PRB) × se × (1-BLER) × U(0.85,1)
+                # prb_ue = N_PRB / max(1, n_ue/n_cell) — 小区内均分
+                bler = max(1e-6, min(0.5, 10 ** (-1.0 - sinr / 20.0)))
+                prb_ue = max(1, N_PRB // max(1, self.n_ue // self.n_cell))
+                dl = (BW_MHZ * (prb_ue / N_PRB) * se * (1 - bler)
+                      * rng.uniform(0.85, 1.0)) * (0.0 if rlf else 1.0)
+                ul = dl * (0.35 if not urllc else 0.5)
+                # 时延/丢包: ON/OFF 突发 + 有限队列 (与真实生成器 TrafficGen 同构)
+                self.traffic[j].step(UE_STEP_MS / 1000.0, dl)
+                q_kb = self.traffic[j].queue_kb
+                lat = (self.traffic[j].last_delay if not rlf else 999.0)
+                plr = (self.traffic[j].last_plr if not rlf else 1.0)
                 # RSRQ
                 rss_mw = sum(10 ** (pwrs[j, ci] / 10) for ci in range(nc)) + noise_mw
                 rsrq = 10 * math.log10(N_PRB) + rsrp - 10 * math.log10(rss_mw) + rng.normal(0, 0.5)

@@ -1,0 +1,28 @@
+\begin{table}[t]
+\centering
+\caption{Tiny-Twin fidelity vs.\ real-network simulation, per scene and KPI. KS = two-sample Kolmogorov--Smirnov statistic ($p$-value); $W_1$ = Wasserstein-1 distance in KPI units; $W_1/\mathrm{IQR}$ = normalized by real-data interquartile range.}
+\label{tab:fidelity}
+\small
+\begin{tabular}{llcccccc}
+\toprule
+Scene & KPI & Real (mean$\pm$sd) & Twin (mean$\pm$sd) & KS ($p$) & $W_1$ & $W_1/$IQR & QQ $R^2$ \\
+\midrule
+低空 & RSRP~(dBm) & -122.9$\pm$14.6 & -129.7$\pm$14.1 & 0.26 (<0.01) & 6.80 & 0.27 & 0.96 \\
+低空 & SINR~(dB) & 7.2$\pm$14.5 & 0.9$\pm$14.0 & 0.20 (<0.01) & 6.37 & 0.25 & 0.98 \\
+低空 & 下行速率~(Mbps) & 78.8$\pm$96.8 & 60.6$\pm$72.0 & 0.20 (<0.01) & 25.10 & 0.16 & 0.94 \\
+低空 & CQI & 9.9$\pm$5.6 & 9.0$\pm$5.7 & 0.09 (<0.01) & 0.90 & 0.08 & 0.97 \\
+城区 & RSRP~(dBm) & -113.7$\pm$12.5 & -106.6$\pm$13.5 & 0.24 (<0.01) & 7.11 & 0.37 & 0.97 \\
+城区 & SINR~(dB) & 15.8$\pm$12.0 & 22.4$\pm$11.9 & 0.27 (<0.01) & 6.67 & 0.38 & 0.99 \\
+城区 & 下行速率~(Mbps) & 77.1$\pm$65.2 & 187.7$\pm$78.5 & 0.59 (<0.01) & 110.56 & 0.99 & 0.75 \\
+城区 & CQI & 13.4$\pm$3.4 & 14.4$\pm$2.1 & 0.17 (<0.01) & 1.04 & 1.04 & 0.77 \\
+机器人工厂 & RSRP~(dBm) & -108.8$\pm$11.0 & -109.4$\pm$9.8 & 0.09 (<0.01) & 1.46 & 0.08 & 0.99 \\
+机器人工厂 & SINR~(dB) & 21.0$\pm$11.2 & 20.2$\pm$9.9 & 0.08 (<0.01) & 1.54 & 0.08 & 0.99 \\
+机器人工厂 & 下行速率~(Mbps) & 112.8$\pm$75.5 & 172.7$\pm$72.3 & 0.42 (<0.01) & 59.89 & 0.78 & 0.87 \\
+机器人工厂 & CQI & 14.4$\pm$1.7 & 14.8$\pm$0.8 & 0.06 (<0.01) & 0.35 & nan & 0.86 \\
+郊区 & RSRP~(dBm) & -113.0$\pm$11.9 & -116.2$\pm$14.4 & 0.17 (<0.01) & 3.81 & 0.23 & 0.97 \\
+郊区 & SINR~(dB) & 15.7$\pm$10.4 & 14.0$\pm$13.9 & 0.16 (<0.01) & 3.69 & 0.26 & 0.98 \\
+郊区 & 下行速率~(Mbps) & 131.1$\pm$89.1 & 130.9$\pm$92.7 & 0.09 (<0.01) & 8.86 & 0.06 & 0.99 \\
+郊区 & CQI & 13.8$\pm$3.0 & 12.8$\pm$3.8 & 0.13 (<0.01) & 1.00 & nan & 0.80 \\
+\bottomrule
+\end{tabular}
+\end{table}
