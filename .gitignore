@@ -7,3 +7,4 @@ world6g/datalake/curated/*.parquet
 .DS_Store
 .playwright-mcp/
 *.png
+!world6g/docs/img/*.png
