@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6G 仿真工作台 — 信息港 (昌平)</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #121a2b; --panel2: #182238; --line: #22304d;
+    --txt: #dce6f5; --dim: #8296b8; --acc: #38bdf8; --ok: #34d399; --warn: #fbbf24;
+    --real: #38bdf8; --twin: #f472b6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--txt); min-height: 100vh;
+         font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header h1 span { color: var(--acc); }
+  .sub { font-size: 12px; color: var(--dim); }
+  .badge { display:inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px;
+           background: var(--panel2); border: 1px solid var(--line); color: var(--dim); margin-left: 6px;}
+  .src-chip { font-size: 11px; padding: 3px 10px; border-radius: 20px; margin-left: auto; }
+  .src-chip.real { background: #0c2d3f; color: var(--real); }
+  .src-chip.twin { background: #3f1d31; color: var(--twin); }
+
+  main { display: grid; grid-template-columns: 215px 1fr 360px; gap: 12px; padding: 12px 18px; }
+
+  /* ---- 左栏: episode + 图层开关 ---- */
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 10px; align-self: start; max-height: calc(100vh - 92px); overflow-y: auto; }
+  aside h3 { font-size: 11px; color: var(--dim); font-weight: 500; margin: 8px 0 6px; }
+  .ep-item { padding: 7px 9px; border-radius: 8px; cursor: pointer; margin-bottom: 3px;
+             border: 1px solid transparent; transition: all .15s; }
+  .ep-item:hover { background: var(--panel2); }
+  .ep-item.active { background: var(--panel2); border-color: var(--acc); }
+  .ep-item .row1 { display: flex; justify-content: space-between; align-items: center; }
+  .ep-item .id { font-size: 13px; font-weight: 600; }
+  .src { font-size: 10px; padding: 1px 6px; border-radius: 4px; }
+  .src.real { background: #0c2d3f; color: var(--real); }
+  .src.twin { background: #3f1d31; color: var(--twin); }
+  .ep-item .row2 { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .layer-toggles .lt { display: flex; align-items: center; gap: 7px; padding: 5px 6px;
+                       font-size: 12px; cursor: pointer; border-radius: 6px; }
+  .layer-toggles .lt:hover { background: var(--panel2); }
+  .layer-toggles .lt input { accent-color: var(--acc); }
+  .layer-toggles .lt i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .lt small { color: var(--dim); font-size: 10px; margin-left: auto; }
+
+  /* ---- 中间: 3D 场景 ---- */
+  .center { display: flex; flex-direction: column; gap: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .panel h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--txt); }
+  .panel h2 small { color: var(--dim); font-weight: 400; margin-left: 8px; }
+  #scene3d { width: 100%; min-height: 640px; }
+  .scene-note { font-size: 11px; color: var(--dim); margin-top: 6px; line-height: 1.6; }
+  .frame-ctl { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .frame-ctl input[type=range] { flex: 1; accent-color: var(--acc); }
+  .frame-ctl .tlabel { font-size: 12px; min-width: 120px; color: var(--txt); font-variant-numeric: tabular-nums; }
+  .frame-ctl button { background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+                      border-radius: 6px; padding: 5px 14px; cursor: pointer; font-size: 12px; }
+  .frame-ctl button:hover { border-color: var(--acc); }
+
+  /* ---- 右栏: KPI + 对话 ---- */
+  .right { display: flex; flex-direction: column; gap: 12px; align-self: start; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; }
+  .kpi-card .label { font-size: 10px; color: var(--dim); }
+  .kpi-card .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
+  .kpi-card .unit { font-size: 10px; color: var(--dim); margin-left: 2px; font-weight: 400; }
+  .kpi-card .hint { font-size: 10px; color: var(--dim); margin-top: 1px; }
+
+  /* hover 详情卡 */
+  .hover-card { font-size: 11px; line-height: 1.7; color: var(--txt); }
+  .hover-card b { color: var(--acc); }
+  .hover-card .kv { display: flex; justify-content: space-between; gap: 10px; }
+  .hover-card .kv span:first-child { color: var(--dim); }
+  .hover-card .tag { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 4px;
+                     background: var(--panel2); border: 1px solid var(--line); color: var(--dim); margin-right: 4px; }
+
+  /* 对话面板 */
+  #chatBox { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow-y: auto;
+             padding: 4px 2px; }
+  .msg { max-width: 92%; padding: 8px 11px; border-radius: 10px; font-size: 12px; line-height: 1.55;
+         white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: #0e3a52; border: 1px solid #1b5679; }
+  .msg.bot  { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+  .chat-input { display: flex; gap: 8px; margin-top: 10px; }
+  .chat-input input { flex: 1; background: var(--panel2); border: 1px solid var(--line); color: var(--txt);
+                      border-radius: 8px; padding: 8px 12px; font-size: 12px; outline: none; }
+  .chat-input input:focus { border-color: var(--acc); }
+  .chat-input button { background: var(--acc); color: #06202e; border: none; border-radius: 8px;
+                       padding: 8px 16px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .chat-input button:hover { filter: brightness(1.12); }
+  .chat-sug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chat-sug button { background: var(--panel2); border: 1px solid var(--line); color: var(--dim);
+                     border-radius: 12px; padding: 3px 10px; font-size: 11px; cursor: pointer; }
+  .chat-sug button:hover { color: var(--acc); border-color: var(--acc); }
+
+  footer { padding: 8px 18px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>6G 仿真工作台 <span>· 中国移动信息港 (昌平)</span></h1>
+  <span class="sub">五层数据 3D 渲染 · hover 查看终端测量/基站 KPI</span>
+  <span class="src-chip real" id="srcChip">真实数据</span>
+</header>
+
+<main>
+  <!-- ============ 左栏 ============ -->
+  <aside>
+    <h3>EPISODES</h3>
+    <div id="epList"></div>
+    <h3>五层渲染开关</h3>
+    <div class="layer-toggles" id="layerToggles">
+      <label class="lt"><input type="checkbox" data-layer="l1" checked><i style="background:#475569"></i>环境特征<small>建筑/道路</small></label>
+      <label class="lt"><input type="checkbox" data-layer="l2" checked><i style="background:#34d399"></i>设备配置<small>站点/扇区</small></label>
+      <label class="lt"><input type="checkbox" data-layer="l3" checked><i style="background:#fb923c"></i>电磁传播<small>RSRP 栅格</small></label>
+      <label class="lt"><input type="checkbox" data-layer="l4" checked><i style="background:#f472b6"></i>业务特征<small>UE/轨迹</small></label>
+      <label class="lt"><input type="checkbox" data-layer="l5" checked><i style="background:#38bdf8"></i>性能KPI<small>hover 详情</small></label>
+    </div>
+  </aside>
+
+  <!-- ============ 中间: 3D 场景 ============ -->
+  <div class="center">
+    <div class="panel" style="flex:1">
+      <h2>3D 仿真场景 <small id="sceneTitle">—</small></h2>
+      <div id="scene3d"></div>
+      <div class="frame-ctl">
+        <button id="playBtn">▶ 播放</button>
+        <input type="range" id="frameSlider" min="0" max="0" value="0" step="1">
+        <span class="tlabel" id="frameLabel">t = 0.00 s</span>
+      </div>
+      <div class="scene-note" id="sceneNote"></div>
+    </div>
+  </div>
+
+  <!-- ============ 右栏: KPI + 对话 ============ -->
+  <div class="right">
+    <div class="panel">
+      <h2>网络指标 <small id="kpiHint">当前 episode</small></h2>
+      <div class="kpis" id="kpiCards"></div>
+    </div>
+    <div class="panel">
+      <h2>选中详情 <small>点击 3D 场景中的 UE / 基站</small></h2>
+      <div class="hover-card" id="detailCard">未选择。点击 UE 球或基站扇区查看终端测量 / 基站 KPI。</div>
+    </div>
+    <div class="panel">
+      <h2>智能问答 <small>自然语言查询数据湖</small></h2>
+      <div id="chatBox">
+        <div class="msg bot">你好! 我可以查询数据湖中的 KPI、对比 episode、解释五层数据。
+试试: 「城区平均RSRP」「低空的SINR对比」「五层是什么」「twin_01 吞吐」</div>
+      </div>
+      <div class="chat-sug">
+        <button data-q="城区平均RSRP">城区平均RSRP</button>
+        <button data-q="五层是什么">五层是什么</button>
+        <button data-q="twin_01 吞吐">twin_01 吞吐</button>
+        <button data-q="基站的KPI情况">基站的KPI情况</button>
+      </div>
+      <div class="chat-input">
+        <input id="chatInput" placeholder="输入问题, Enter 发送…" autocomplete="off">
+        <button id="chatSend">发送</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  数据来源: 6G_data_simulation 真实 episodes (网格6 工参) + Tiny-Twin 生成 · 园区: OSM 建筑轮廓 (ODbL) ·
+  <span class="badge">Plotly 3D</span><span class="badge">FastAPI + DuckDB</span>
+  <a href="/" style="color:var(--dim);margin-left:8px">← 返回数据底座主页</a>
+</footer>
+
+<script>
+const API = '';
+const fmt = (v, d=1) => v==null ? '—' : (+v).toFixed(d);
+let EPS = [], CUR = null, SCENE = null, PLAYING = false, PLAY_TIMER = null;
+
+async function jget(url) { const r = await fetch(url); if (!r.ok) throw new Error(url+': '+r.status); return r.json(); }
+async function post(url, body) {
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                              body: JSON.stringify(body)});
+  if (!r.ok) throw new Error(url + ': ' + r.status);
+  return r.json();
+}
+
+/* ---------- 左栏: episodes ---------- */
+async function loadEpisodes() {
+  EPS = await jget(API + '/api/episodes');
+  const el = document.getElementById('epList');
+  el.innerHTML = '';
+  for (const e of EPS) {
+    const d = document.createElement('div');
+    d.className = 'ep-item' + (e.id === CUR ? ' active' : '');
+    d.innerHTML = `<div class="row1"><span class="id">${e.id}</span>
+      <span class="src ${e.source}">${e.source === 'real' ? '真实' : 'Twin'}</span></div>
+      <div class="row2">${e.scene} · ${e.n_ue} UE</div>`;
+    d.onclick = () => selectEp(e.id);
+    el.appendChild(d);
+  }
+}
+
+/* ---------- 选中 episode → 拉 3D 场景 ---------- */
+async function selectEp(id) {
+  CUR = id;
+  document.querySelectorAll('.ep-item').forEach((el, i) =>
+    el.classList.toggle('active', EPS[i] && EPS[i].id === id));
+  try { SCENE = await jget(`${API}/api/scene3d/${encodeURIComponent(id)}`); }
+  catch (e) { alert('加载场景失败: ' + e); return; }
+  const e = EPS.find(x => x.id === id);
+  document.getElementById('sceneTitle').textContent =
+    `${SCENE.map_name} · ${e ? e.scene : ''} · ${id}`;
+  const chip = document.getElementById('srcChip');
+  chip.className = 'src-chip ' + (e ? e.source : 'real');
+  chip.textContent = e && e.source === 'twin' ? 'Tiny-Twin 生成' : '真实仿真数据';
+  renderKpiCards(e);
+  buildFrameSlider();
+  renderScene();
+}
+
+/* ---------- 右栏: KPI 卡 ---------- */
+function renderKpiCards(e) {
+  if (!e) return;
+  const kpi = (label, value, unit, hint, color) =>
+    `<div class="kpi-card"><div class="label">${label}</div>
+     <div class="value" style="color:${color||'var(--txt)'}">${value}<span class="unit">${unit}</span></div>
+     <div class="hint">${hint}</div></div>`;
+  document.getElementById('kpiCards').innerHTML =
+    kpi('平均 RSRP', fmt(e.rsrp), 'dBm', '终端测量层') +
+    kpi('平均 SINR', fmt(e.sinr), 'dB', '链路质量') +
+    kpi('下行速率', fmt(e.dl), 'Mbps', '业务层均值') +
+    kpi('终端数', e.n_ue, '个', e.scene);
+}
+
+/* ---------- 3D 场景 ---------- */
+let FRAMES = [], FRAME_IDX = 0;
+
+function buildFrameSlider() {
+  if (!SCENE) return;
+  const n = SCENE.traces.length ? SCENE.traces[0].x.length : 1;
+  FRAMES = Array.from({length: n}, (_, i) => i);
+  const s = document.getElementById('frameSlider');
+  s.max = n - 1; s.value = n - 1; FRAME_IDX = n - 1;
+  updateFrameLabel();
+}
+
+function updateFrameLabel() {
+  if (!SCENE) return;
+  const fi = +document.getElementById('frameSlider').value;
+  document.getElementById('frameLabel').textContent = `t = ${(fi * 0.05).toFixed(2)} s`;
+}
+
+const LAYER_ON = {l1: true, l2: true, l3: true, l4: true, l5: true};
+document.querySelectorAll('#layerToggles input').forEach(cb =>
+  cb.addEventListener('change', () => { LAYER_ON[cb.dataset.layer] = cb.checked; renderScene(); }));
+
+const RSRP_ZMIN = -135, RSRP_ZMAX = -85;
+
+function rsrpColor(v) {
+  // Turbo 近似: 蓝(差) → 绿 → 红(好)
+  const t = Math.max(0, Math.min(1, (v - RSRP_ZMIN) / (RSRP_ZMAX - RSRP_ZMIN)));
+  const r = Math.round(34 + t * 221), g = Math.round(60 + Math.sin(t * Math.PI) * 195),
+        b = Math.round(236 - t * 200);
+  return `rgb(${r},${g},${b})`;
+}
+
+function renderScene() {
+  if (!SCENE) return;
+  const fi = +document.getElementById('frameSlider').value;
+  const traces = [];
+
+  /* ---- 第1层 环境特征: 建筑 (顶面 + 侧壁) ---- */
+  if (LAYER_ON.l1) {
+    for (const b of SCENE.buildings) {
+      const n = b.poly.length;
+      const xs = b.poly.map(p => p[0]), ys = b.poly.map(p => p[1]);
+      traces.push({ type: 'mesh3d', x: xs, y: ys, z: Array(n).fill(b.h),
+        i: [...Array(n - 1).keys()], j: [...Array(n - 1).keys()].map(i => i + 1),
+        k: Array(n - 1).fill(0),
+        color: 'rgb(42,58,84)', opacity: 0.32, flatshading: true,
+        hovertemplate: `建筑 ${b.id}<br>类型 ${b.btype} · 高 ${b.h}m · ${Math.round(b.area)}m²` +
+          `<br>高度来源: ${b.source_height}<extra>环境特征</extra>`, showlegend: false,
+        name: '建筑' });
+      // 侧壁 (每边一面)
+      for (let i = 0; i < n; i++) {
+        const p0 = b.poly[i], p1 = b.poly[(i + 1) % n];
+        traces.push({ type: 'mesh3d',
+          x: [p0[0], p1[0], p1[0], p0[0]], y: [p0[1], p1[1], p1[1], p0[1]],
+          z: [0, 0, b.h, b.h], i: [0, 0], j: [1, 2], k: [2, 3],
+          color: 'rgb(38,52,76)', opacity: 0.5, hoverinfo: 'skip', showlegend: false });
+      }
+    }
+  }
+
+  /* ---- 第3层 电磁传播: 地面 RSRP 栅格 ---- */
+  if (LAYER_ON.l3) {
+    const g = SCENE.radio_grid;
+    traces.push({ type: 'surface', x: g.x[0], y: g.y.map(r => r[0]), z: g.x.map(() => 0.5),
+      surfacecolor: g.rsrp.map(r => r.slice(0, g.rsrp[0].length)),
+      colorscale: 'Turbo', cmin: RSRP_ZMIN, cmax: RSRP_ZMAX, opacity: 0.85,
+      colorbar: {title: {text: 'RSRP dBm', font: {size: 10}}, thickness: 10, len: 0.6, x: 1.02},
+      hovertemplate: 'RSRP %{surfacecolor:.1f} dBm<extra>电磁传播</extra>',
+      name: 'RSRP 栅格', showlegend: false, contours: {x: {highlight: false}, y: {highlight: false}, z: {highlight: false}} });
+  }
+
+  /* ---- 第2层 设备配置: 站点扇区 (方位锥) ---- */
+  if (LAYER_ON.l2) {
+    for (const s of SCENE.sites) {
+      const kpi = (SCENE.cellkpi || []).find(c => c.cell === s.cell);
+      const r = 130, a0 = (s.az - 28) * Math.PI / 180, a1 = (s.az + 28) * Math.PI / 180;
+      const am = s.az * Math.PI / 180;
+      const zA = s.h;
+      const hov = kpi
+        ? `小区 ${s.cell}<br>PCI ${s.pci} · 挂高 ${s.h}m · 方位 ${fmt(s.az,0)}° · 功率 ${s.tx_pwr}` +
+          `<br>连接 ${kpi.conn} · 吞吐 ${fmt(kpi.thr)} Mbps<br>PRB DL ${fmt(kpi.prb_dl)}% / UL ${fmt(kpi.prb_ul)}%` +
+          `<br>拥塞率 ${fmt(kpi.cong * 100)}% · 掉线率 ${fmt(kpi.drop * 100)}%<extra>基站 KPI</extra>`
+        : `小区 ${s.cell}<br>PCI ${s.pci} · 挂高 ${s.h}m · 方位 ${fmt(s.az,0)}°<extra>设备配置</extra>`;
+      traces.push({ type: 'scatter3d', mode: 'lines',
+        x: [0, r * Math.cos(a0), r * Math.cos(am), r * Math.cos(a1), 0],
+        y: [0, r * Math.sin(a0), r * Math.sin(am), r * Math.sin(a1), 0],
+        z: [zA, zA, zA, zA, zA],
+        line: {color: '#34d399', width: 5}, opacity: 0.9,
+        hovertemplate: hov, name: s.cell.slice(-12), showlegend: false });
+      traces.push({ type: 'mesh3d',
+        x: [0, r * Math.cos(a0), r * Math.cos(am)], y: [0, r * Math.sin(a0), r * Math.sin(am)],
+        z: [zA, zA, zA], i: [0], j: [1], k: [2],
+        color: 'rgb(52,211,153)', opacity: 0.18, hoverinfo: 'skip', showlegend: false });
+      traces.push({ type: 'mesh3d',
+        x: [0, r * Math.cos(am), r * Math.cos(a1)], y: [0, r * Math.sin(am), r * Math.sin(a1)],
+        z: [zA, zA, zA], i: [0], j: [1], k: [2],
+        color: 'rgb(52,211,153)', opacity: 0.18, hoverinfo: 'skip', showlegend: false });
+      // 天线杆
+      traces.push({ type: 'scatter3d', mode: 'lines',
+        x: [0, 0], y: [0, 0], z: [0, s.h], line: {color: '#34d399', width: 6},
+        hovertemplate: hov, showlegend: false });
+    }
+  }
+
+  /* ---- 第4层 业务特征 + 第5层 KPI: UE 轨迹 + 球 ---- */
+  if (LAYER_ON.l4) {
+    for (const tr of SCENE.traces) {
+      if (tr.x.length > fi) {
+        traces.push({ type: 'scatter3d', mode: 'lines',
+          x: tr.x.slice(0, fi + 1), y: tr.y.slice(0, fi + 1), z: tr.z.slice(0, fi + 1),
+          line: {color: 'rgba(244,114,182,.35)', width: 2}, hoverinfo: 'skip',
+          showlegend: false, name: `UE${tr.ue} 轨迹` });
+      }
+    }
+  }
+
+  /* UE 当前帧球体 (RSRP 着色, hover=终端测量详情) */
+  if (LAYER_ON.l4 || LAYER_ON.l5) {
+    for (const u of SCENE.ues) {
+      const tr = SCENE.traces.find(t => t.ue === u.ue);
+      let x = u.x, y = u.y, z = u.z;
+      if (tr && tr.x.length > fi) { x = tr.x[fi]; y = tr.y[fi]; z = tr.z[fi]; }
+      const hov =
+        `UE ${u.ue} <span class="tag">${u.type}</span><br>` +
+        `服务小区 ${u.cell}<br>` +
+        `RSRP ${fmt(u.rsrp)} dBm · SINR ${fmt(u.sinr)} dB · CQI ${u.cqi}<br>` +
+        `下行 ${fmt(u.dl)} Mbps · 上行 ${fmt(u.ul)} Mbps<br>` +
+        `时延 ${fmt(u.lat)} ms · 丢包 ${fmt(u.plr * 100)}%<br>` +
+        `业务: ${u.svc} · 速度 ${fmt(u.spd)} m/s<extra>终端测量</extra>`;
+      traces.push({ type: 'scatter3d', mode: 'markers',
+        x: [x], y: [y], z: [z + 0.5],
+        marker: {size: 8, color: rsrpColor(u.rsrp), line: {width: 1, color: '#0b1220'}},
+        hovertemplate: hov, name: `UE${u.ue} (${u.type})`, showlegend: false });
+    }
+  }
+
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: {color: '#dce6f5', size: 10},
+    height: 640, showlegend: false,
+    margin: {l: 0, r: 0, t: 10, b: 0},
+    scene: {
+      xaxis: {title: {text: '东 E (m)'}, gridcolor: 'rgba(148,163,184,.10)',
+              backgroundcolor: 'rgba(0,0,0,0)', zeroline: false},
+      yaxis: {title: {text: '北 N (m)'}, gridcolor: 'rgba(148,163,184,.10)',
+              backgroundcolor: 'rgba(0,0,0,0)', zeroline: false},
+      zaxis: {title: {text: '高 H (m)'}, gridcolor: 'rgba(148,163,184,.10)',
+              backgroundcolor: 'rgba(0,0,0,0)', zeroline: false, range: [0, 80]},
+      aspectmode: 'manual', aspectratio: {x: 2.2, y: 1.6, z: 0.35},
+      camera: {eye: {x: 0.9, y: -1.5, z: 0.7}},
+    }
+  };
+  Plotly.react('scene3d', traces, layout, {displayModeBar: 'hover'}).then(bindSceneClick);
+
+  document.getElementById('sceneNote').innerHTML =
+    `基站 3 扇区 (真实工参, 演示部署) · UE ${SCENE.ues.length} 个 (RSRP 着色) · ` +
+    `轨迹回放: 拖动进度条或 ▶ 播放 · hover 建筑/扇区/UE 查看五层数据<br>` +
+    `第1层 环境: ${SCENE.buildings.length} 栋建筑 (OSM) · 第3层: RSRP radio map · 第5层: hover KPI`;
+}
+
+/* ---------- 帧播放 ---------- */
+document.getElementById('frameSlider').addEventListener('input', () => {
+  updateFrameLabel(); renderScene();
+});
+document.getElementById('playBtn').addEventListener('click', () => {
+  PLAYING = !PLAYING;
+  document.getElementById('playBtn').textContent = PLAYING ? '⏸ 暂停' : '▶ 播放';
+  if (PLAYING) {
+    let fi = +document.getElementById('frameSlider').value;
+    const maxF = +document.getElementById('frameSlider').max;
+    PLAY_TIMER = setInterval(() => {
+      fi = fi >= maxF ? 0 : fi + 1;
+      document.getElementById('frameSlider').value = fi;
+      updateFrameLabel(); renderScene();
+      if (!PLAYING) clearInterval(PLAY_TIMER);
+    }, 120);
+  } else if (PLAY_TIMER) clearInterval(PLAY_TIMER);
+});
+
+/* ---------- click → 右侧详情卡 ---------- */
+let _clickBound = false;
+function bindSceneClick() {
+  if (_clickBound) return;
+  const el = document.getElementById('scene3d');
+  el.on('plotly_click', (data) => {
+  if (!data.points || !data.points.length) return;
+  const p = data.points[0];
+  const name = p.data.name || '';
+  if (name.startsWith('UE')) {
+    const ueId = parseInt(name.replace(/^UE(\d+).*/, '$1'));
+    const u = SCENE.ues.find(x => x.ue === ueId);
+    if (u) {
+      document.getElementById('detailCard').innerHTML =
+        `<b>终端测量 · UE ${u.ue}</b> <span class="tag">${u.type}</span><br>` +
+        `<div class="kv"><span>服务小区</span><span>${u.cell}</span></div>` +
+        `<div class="kv"><span>RSRP</span><span>${fmt(u.rsrp)} dBm</span></div>` +
+        `<div class="kv"><span>SINR</span><span>${fmt(u.sinr)} dB</span></div>` +
+        `<div class="kv"><span>CQI</span><span>${u.cqi}</span></div>` +
+        `<div class="kv"><span>下行/上行速率</span><span>${fmt(u.dl)} / ${fmt(u.ul)} Mbps</span></div>` +
+        `<div class="kv"><span>端到端时延</span><span>${fmt(u.lat)} ms</span></div>` +
+        `<div class="kv"><span>丢包率</span><span>${fmt(u.plr * 100)}%</span></div>` +
+        `<div class="kv"><span>业务及需求</span><span>${u.svc}</span></div>` +
+        `<div class="kv"><span>移动速度</span><span>${fmt(u.spd)} m/s</span></div>`;
+    }
+  } else if (name && p.data.hovertemplate && p.data.hovertemplate.includes('基站 KPI')) {
+    const s = SCENE.sites.find(x => name === x.cell.slice(-12));
+    const kpi = s && (SCENE.cellkpi || []).find(c => c.cell === s.cell);
+    if (s && kpi) {
+      document.getElementById('detailCard').innerHTML =
+        `<b>基站 KPI · ${s.cell}</b><br>` +
+        `<div class="kv"><span>PCI / 频段</span><span>${s.pci}</span></div>` +
+        `<div class="kv"><span>挂高 / 方位</span><span>${s.h} m / ${fmt(s.az, 0)}°</span></div>` +
+        `<div class="kv"><span>发射功率</span><span>${s.tx_pwr}</span></div>` +
+        `<div class="kv"><span>连接数</span><span>${kpi.conn}</span></div>` +
+        `<div class="kv"><span>吞吐量</span><span>${fmt(kpi.thr)} Mbps</span></div>` +
+        `<div class="kv"><span>PRB 利用率 DL/UL</span><span>${fmt(kpi.prb_dl)}% / ${fmt(kpi.prb_ul)}%</span></div>` +
+        `<div class="kv"><span>拥塞率</span><span>${fmt(kpi.cong * 100)}%</span></div>` +
+        `<div class="kv"><span>掉线率</span><span>${fmt(kpi.drop * 100)}%</span></div>`;
+    }
+  }
+  });
+  _clickBound = true;
+}
+
+/* ---------- 对话 ---------- */
+async function sendChat(q) {
+  if (!q) return;
+  const box = document.getElementById('chatBox');
+  box.insertAdjacentHTML('beforeend', `<div class="msg user">${q.replace(/</g,'&lt;')}</div>`);
+  box.scrollTop = box.scrollHeight;
+  try {
+    const r = await post(API + '/api/chat', {q, ep: CUR || ''});
+    box.insertAdjacentHTML('beforeend',
+      `<div class="msg bot">${(r.reply || '').replace(/</g,'&lt;').replace(/\n/g, '<br>')}</div>`);
+  } catch (e) {
+    box.insertAdjacentHTML('beforeend', `<div class="msg bot">查询失败: ${e}</div>`);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+document.getElementById('chatSend').addEventListener('click', () => {
+  const inp = document.getElementById('chatInput');
+  sendChat(inp.value.trim()); inp.value = '';
+});
+document.getElementById('chatInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    sendChat(e.target.value.trim()); e.target.value = '';
+  }
+});
+document.querySelectorAll('.chat-sug button').forEach(b =>
+  b.addEventListener('click', () => sendChat(b.dataset.q)));
+
+/* ---------- 启动 ---------- */
+(async () => {
+  await loadEpisodes();
+  const first = EPS.find(e => e.source === 'real') || EPS[0];
+  if (first) await selectEp(first.id);
+})();
+</script>
+</body>
+</html>

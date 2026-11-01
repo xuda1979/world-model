@@ -176,24 +176,59 @@ def health():
 
 @app.get("/api/scene3d/{episode_id}")
 def scene3d(episode_id: str):
-    """3D 场景全部数据: 地面栅格 radio map + 站点 + UE 轨迹(球) + 五层标注
-    地图: 中国移动信息港 (昌平) — 真实工参经纬度 (episode_1 站点)"""
+    """3D 场景全部数据 (五层渲染, 单次请求).
+    第1层 环境特征: 园区建筑/道路 (中国移动信息港·昌平, OSM)
+    第2层 设备配置: 站点工参 (真实 episode 工参; twin 用对应场景工参)
+    第3层 电磁传播: 地面 RSRP radio map 栅格
+    第4层 业务特征: UE 逐帧位置/类型/业务 + 轨迹
+    第5层 性能KPI: UE hover (RSRP/SINR/CQI/速率/时延/丢包) + 小区 hover KPI"""
     df = _ep_ue_df(episode_id)
     if df.empty:
         raise HTTPException(404)
-    t_max = float(df["时间戳(ms)"].max())
+    import numpy as _np
 
-    # ---- 第1层 环境特征: 站点(真实工参) + 地面建筑占位 (OSM 布局, 信息港) ----
+    # ---- 第1层 环境特征: 园区建筑 + 道路 (信息港 ENU 米制) ----
+    buildings, roads = [], []
+    try:
+        from twin.campus import campus_payload as _cp
+        cp = _cp()
+        buildings = cp["buildings"]
+        roads = cp["roads"]
+    except Exception:
+        pass
+
+    # ---- 第2层 设备配置: 站点 (episode 工参 + 园区部署位置) ----
+    # UE 坐标以站点簇为原点 (真实网格布局); 站点在园区 ENU 中的部署位置由
+    # UE 包络平移到园区核心区 (演示部署, 来源标识 "仿真部署")
     site = _ep_site_df(episode_id)
+    if site.empty and episode_id.startswith("twin"):
+        # twin 无 site 表: 用对应场景真实 episode 的工参 (与 twin 生成同源)
+        _SCENE_EP = {"城区": 1, "郊区": 3, "低空": 4, "机器人工厂": 5}
+        try:
+            rep = json.loads((GEN_DIR / "twin_report.json").read_text())
+            scene = next((r["scene"] for r in rep if r["gen_episode"] == episode_id), "城区")
+            site = _ep_site_df(str(_SCENE_EP.get(scene, 1)))
+        except Exception:
+            site = pd.DataFrame()
     sites = []
+    ue_x = df["位置X"].astype(float); ue_y = df["位置Y"].astype(float)
     if not site.empty:
         for _, s in site.iterrows():
             sites.append({"cell": s["cell_name"], "az": float(s["azimuth"]),
                           "h": float(s["height"]), "pci": int(s["pci"]),
                           "lon": float(s["longitude"]), "lat": float(s["latitude"]),
+                          "x": 0.0, "y": 0.0,
                           "tx_pwr": str(s["SSB transmit power"])})
-    # ---- 第2层 设备配置: 动作/配置参数 (NRM 摘要) ----
-    # nrm 表为宽表 (对象类型行 × AntennaFunction 列), 与 episode 无关联 → 仅对真实 episode 返回
+    # UE 包络 -> 园区核心区 (锚点信息港6期东南开阔区) 平移
+    off_x, off_y = 728.0, 345.0
+    if sites and not df.empty:
+        off_x = 728.0 - float((ue_x.min() + ue_x.max()) / 2)
+        off_y = 345.0 - float((ue_y.min() + ue_y.max()) / 2)
+    df = df.copy()
+    df["位置X"] = ue_x + off_x
+    df["位置Y"] = ue_y + off_y
+
+    # ---- 第2层 设备配置: NRM 配置 (真实 episode) ----
     cfg = []
     try:
         if not episode_id.startswith("twin"):
@@ -202,18 +237,18 @@ def scene3d(episode_id: str):
     except Exception:
         cfg = []
 
-    # ---- 第3层 电磁传播: 地面 radio map 栅格 (RSRP 热力, 60×60m 内插) ----
-    import numpy as _np
+    # ---- 第3层 电磁传播: 地面 radio map (RSRP, 最新帧 UE 测量内插) ----
+    t_max = float(df["时间戳(ms)"].max())
     latest = df[df["时间戳(ms)"] == t_max]
-    gx, gy = _np.mgrid[-450:450:31j, -450:450:31j]
     from scipy.interpolate import griddata as _gd
+    gx, gy = _np.mgrid[off_x - 450:off_x + 450:31j, off_y - 450:off_y + 450:31j]
     pts = latest[["位置X", "位置Y"]].values
     vals = latest["服务小区RSRP(dBm)"].values
     grid_rsrp = _gd(pts, vals, (gx, gy), method="linear")
     radio_grid = {"x": gx.tolist(), "y": gy.tolist(),
                   "rsrp": _np.round(_np.nan_to_num(grid_rsrp, nan=-140.0), 1).tolist()}
 
-    # ---- 第4层 业务特征 + 第5层 性能KPI: UE 球 (type/速率/时延/丢包) ----
+    # ---- 第4层 业务特征 + 第5层 性能KPI: UE 逐帧 ----
     ues = []
     for _, r in latest.iterrows():
         ues.append({
@@ -231,7 +266,7 @@ def scene3d(episode_id: str):
         traces.append({"ue": int(ueid), "x": g["位置X"].round(1).tolist(),
                        "y": g["位置Y"].round(1).tolist(), "z": g["位置Z"].round(1).tolist()})
 
-    # ---- 基站 KPI (cellperf 最新, hover 用) ----
+    # ---- 第5层 性能KPI: 小区级 (cellperf 最新, 基站 hover) ----
     cellkpi = []
     if episode_id.startswith("twin"):
         cp = pd.read_parquet(GEN_DIR / f"{episode_id}_cellperf.parquet")
@@ -247,7 +282,9 @@ def scene3d(episode_id: str):
                             "cong": float(r["拥塞率"]), "drop": float(r["掉线率"])})
     return {"sites": sites, "ues": ues, "traces": traces, "radio_grid": radio_grid,
             "cellkpi": cellkpi, "nrm": cfg, "t_max": t_max,
+            "buildings": buildings, "roads": roads,
             "map_name": "中国移动信息港 (昌平) · 北京移动信息港/城区, OSM 建筑布局"}
+
 
 
 LAYER_DOCS = {
@@ -390,7 +427,21 @@ async def chat(req: dict):
                 return {"reply": (f"episode {ep_id} 的{name}: 均值 {v.mean():.1f}{unit}, "
                                   f"P10 {_np2.percentile(v,10):.1f}, 中位 {v.median():.1f}, "
                                   f"P90 {_np2.percentile(v,90):.1f}, 最大 {v.max():.1f} (n={len(v):,})")}
-            return {"reply": f"请指明 episode, 如「1 的{ name }」或「twin_01 的{name}」"}
+            # 未指明 episode → 用当前选中 episode, 否则回退 real/首个
+            ep_cur = str(req.get("ep", "")).strip()
+            eps = episodes()
+            if not ep_cur:
+                ep_cur = next((e["id"] for e in eps if e["source"] == "real"), eps[0]["id"] if eps else None)
+            if ep_cur is None:
+                return {"reply": f"数据湖中还没有 episode, 无法查询{name}"}
+            dfe = _ep_ue_df(ep_cur)
+            if dfe.empty:
+                return {"reply": f"请指明 episode, 如「1 的{name}」或「twin_01 的{name}」"}
+            import numpy as _np2
+            v = dfe[col].astype(float)
+            return {"reply": (f"episode {ep_cur} 的{name}: 均值 {v.mean():.1f}{unit}, "
+                              f"P10 {_np2.percentile(v,10):.1f}, 中位 {v.median():.1f}, "
+                              f"P90 {_np2.percentile(v,90):.1f}, 最大 {v.max():.1f} (n={len(v):,})")}
         # 默认: episode 概览
         if ep_id:
             eps = episodes()
@@ -411,6 +462,12 @@ async def chat(req: dict):
 @app.get("/")
 def index():
     return FileResponse(Path(__file__).resolve().parents[1] / "frontend" / "index.html")
+
+
+@app.get("/workbench")
+def workbench():
+    """3D 仿真工作台 (信息港): 五层渲染 + 右侧对话/指标 + hover 详情"""
+    return FileResponse(Path(__file__).resolve().parents[1] / "frontend" / "workbench.html")
 
 
 if __name__ == "__main__":
