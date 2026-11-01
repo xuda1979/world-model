@@ -56,6 +56,25 @@
   .metric-tabs button { background: var(--panel2); border: 1px solid var(--line); color: var(--dim);
         font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .metric-tabs button.active { color: var(--acc); border-color: var(--acc); }
+  /* ---- 能力卡 ---- */
+  .cap-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .cap-card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .cap-card .cap-name { font-size: 14px; font-weight: 700; color: var(--acc); }
+  .cap-card .cap-desc { font-size: 12px; color: var(--txt); margin-top: 6px; line-height: 1.5; }
+  .cap-card .cap-src { font-size: 10.5px; color: var(--dim); margin-top: 8px;
+        border-top: 1px dashed var(--line); padding-top: 6px; }
+  .cap-card .cap-model { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  /* ---- WM 控件 ---- */
+  .wm-controls { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
+        font-size: 12px; color: var(--dim); }
+  .wm-controls select { background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+        border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+  .wm-controls button { background: var(--acc); color: #04101e; font-weight: 700; border: none;
+        border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 12px; }
+  .wm-controls button:hover { filter: brightness(1.15); }
+  .wm-src { font-size: 11px; }
+  .wm-note, .campus-note { font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.6; }
+  #campusPlot { min-height: 460px; }
   footer { padding: 10px 22px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
   .badge { display:inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px;
            background: var(--panel2); border: 1px solid var(--line); color: var(--dim); margin-left: 8px;}
@@ -115,6 +134,42 @@
         <div id="twinPlot" class="plot"></div>
       </div>
     </div>
+
+    <div class="panel">
+      <h2>五项能力 <small>方案一 §三 / 方案二 §四 — 每项能力一张结果卡, 常驻数据来源标识</small></h2>
+      <div class="cap-cards" id="capCards"></div>
+    </div>
+
+    <div class="panel">
+      <h2>世界模型 · 动作对照 Rollout
+        <small>GRU-WM v0.2 · 动作条件多步预测 (baseline vs 动作后), 反事实同根分支训练</small></h2>
+      <div class="wm-controls">
+        <label>Episode <select id="wmEp"></select></label>
+        <label>UE <select id="wmUe"></select></label>
+        <label>动作 <select id="wmAct">
+          <option value='{"type":"baseline","value":0}'>baseline (无动作)</option>
+          <option value='{"type":"pmax_scale","value":0.8}'>发射功率 ×0.8</option>
+          <option value='{"type":"pmax_scale","value":1.2}'>发射功率 ×1.2</option>
+          <option value='{"type":"az_offset","value":-15}'>方位角 −15°</option>
+          <option value='{"type":"az_offset","value":15}'>方位角 +15°</option>
+          <option value='{"type":"prb_scale","value":0.3}'>PRB ×0.3</option>
+          <option value='{"type":"ho_offset","value":4.4}'>切换偏置 +4.4dB</option>
+        </select></label>
+        <label>步数 <select id="wmSteps">
+          <option>40</option><option selected>80</option><option>160</option>
+        </select></label>
+        <button id="wmRun">Rollout 对照</button>
+        <span class="wm-src" id="wmSrc"></span>
+      </div>
+      <div id="wmPlot" class="plot" style="min-height:300px"></div>
+      <div class="wm-note" id="wmNote"></div>
+    </div>
+
+    <div class="panel">
+      <h2>园区地图 <small id="campusName">中国移动信息港 (昌平)</small></h2>
+      <div id="campusPlot" class="plot" style="min-height:420px"></div>
+      <div class="campus-note" id="campusNote"></div>
+    </div>
   </div>
 </main>
 
@@ -137,6 +192,7 @@ async function loadEpisodes() {
   renderEpList();
   renderCompare();
   renderTwinCal();
+  fillWmEpisodes();
   if (EPS.length) selectEp(EPS[0].id);
 }
 
@@ -294,7 +350,153 @@ document.getElementById('metricTabs').addEventListener('click', ev => {
   b.classList.add('active'); METRIC = b.dataset.m; loadKpi();
 });
 
+// ================= 能力演示: 五项能力 + 动作对照 + 园区地图 =================
+
+async function post(url, body) {
+  const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify(body)});
+  if (!r.ok) throw new Error(url + ': ' + r.status + ' ' + await r.text());
+  return r.json();
+}
+
+async function loadCapabilities() {
+  const cards = await jget(API + '/api/capabilities');
+  const el = document.getElementById('capCards');
+  el.innerHTML = cards.map(c => `
+    <div class="cap-card">
+      <div class="cap-name">${c.name}</div>
+      <div class="cap-desc">${c.desc}</div>
+      ${c.model && c.model.available
+        ? `<div class="cap-model">模型: ${c.model.version} · hist=${c.model.hist} · ${c.model.params} 参数</div>` : ''}
+      <div class="cap-src">来源: ${c.source}</div>
+    </div>`).join('');
+}
+
+function fillWmEpisodes() {
+  const sel = document.getElementById('wmEp');
+  sel.innerHTML = EPS.map(e => `<option value="${e.id}">${e.id} (${e.scene}${e.source === 'twin' ? ' · Twin' : ''})</option>`).join('');
+  sel.value = (EPS.find(e => e.id === 'twin_01') || EPS[0] || {}).id || '';
+  fillWmUes();
+}
+
+async function fillWmUes() {
+  const epId = document.getElementById('wmEp').value;
+  const sel = document.getElementById('wmUe');
+  try {
+    const d = await jget(API + '/api/map/' + encodeURIComponent(epId));
+    sel.innerHTML = d.traces.map(t => `<option value="${t.ue}">UE ${t.ue}</option>`).join('');
+  } catch (e) { sel.innerHTML = '<option>0</option>'; }
+}
+
+const WM_KPI = [  // state_cols 顺序: RSRP / SINR / DL / CQI
+  {name: 'RSRP', unit: 'dBm', col: 0, color: '#38bdf8'},
+  {name: 'SINR', unit: 'dB', col: 1, color: '#a78bfa'},
+  {name: '下行速率', unit: 'Mbps', col: 2, color: '#34d399'},
+  {name: 'CQI', unit: '', col: 3, color: '#fbbf24'},
+];
+
+async function runWmRollout() {
+  const epId = document.getElementById('wmEp').value;
+  const ue = document.getElementById('wmUe').value;
+  const action = JSON.parse(document.getElementById('wmAct').value);
+  const steps = +document.getElementById('wmSteps').value;
+  const src = document.getElementById('wmSrc');
+  src.textContent = '推理中…';
+  try {
+    const r = await post(API + '/api/wm/rollout', {episode_id: epId, ue: +ue, action, steps});
+    const t = Array.from({length: r.steps}, (_, i) => ((r.t0 + (i + 1) * r.dt_ms) / 1000).toFixed(2));
+    const traces = [];
+    const shapes = [];
+    WM_KPI.forEach((k, i) => {
+      const yb = r.baseline.map(row => row[k.col]), ya = r.acted.map(row => row[k.col]);
+      traces.push({x: t, y: yb, mode: 'lines', name: `${k.name} baseline`, legendgroup: k.name,
+        line: {color: k.color, width: 1.6, dash: 'dot'}, xaxis: 'x', yaxis: 'y' + (i + 1)});
+      traces.push({x: t, y: ya, mode: 'lines', name: `${k.name} 动作后`, legendgroup: k.name,
+        showlegend: i === 0, line: {color: k.color, width: 2.2}});
+      traces[traces.length - 1].yaxis = 'y' + (i + 1);
+      const y1 = Math.min(...yb, ...ya), y2 = Math.max(...yb, ...ya), pad = Math.max((y2 - y1) * 0.15, 1e-6);
+      shapes.push({yaxis: 'y' + (i + 1), type: 'line', x0: t[0], x1: t[t.length - 1],
+        y0: (y1 + y2) / 2, y1: (y1 + y2) / 2, line: {width: 0},  // 占位: subplot 边界由 plotly 处理
+        layer: 'below'});
+    });
+    const layout = {...BASE, height: 320 + WM_KPI.length * 60,
+      grid: {rows: 4, columns: 1, pattern: 'independent'},
+      margin: {l: 46, r: 12, t: 8, b: 34}};
+    WM_KPI.forEach((k, i) => {
+      layout['yaxis' + (i + 1)] = {title: {text: `${k.name}${k.unit ? ' (' + k.unit + ')' : ''}`, font: {size: 10}},
+        gridcolor: 'rgba(148,163,184,.12)', zeroline: false};
+    });
+    layout.xaxis = {gridcolor: 'rgba(148,163,184,.12)', title: {text: '时间 (s)', font: {size: 10}}};
+    Plotly.react('wmPlot', traces, layout, {displayModeBar: false});
+    // 效应摘要: 动作后 − baseline 均值差
+    const sums = WM_KPI.map(k => {
+      const d = r.acted.map((row, i) => row[k.col] - r.baseline[i][k.col]);
+      const m = d.reduce((a, b) => a + b, 0) / d.length;
+      return `${k.name} ${m >= 0 ? '+' : ''}${m.toFixed(2)}${k.unit}`;
+    }).join(' · ');
+    src.textContent = `模型: ${r.model.version}`;
+    document.getElementById('wmNote').innerHTML =
+      `动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> 在 episode <b>${r.episode_id}</b> ` +
+      `UE ${r.ue} 上 ${steps} 步 (×50ms) 的反事实预测: 均值效应 ${sums}。` +
+      `训练数据: 同根反事实分支 (twin_action_dataset, 83,200 样本); 未通过检查的任务保留原引擎 (方案二 §四)。`;
+  } catch (e) {
+    src.textContent = '失败: ' + e.message;
+  }
+}
+
+async function loadCampus() {
+  const c = await jget(API + '/api/campus');
+  document.getElementById('campusName').textContent = c.name;
+  const traces = [];
+  // 建筑 (填充多边形)
+  for (const b of c.buildings) {
+    const xs = b.poly.map(p => p[0]), ys = b.poly.map(p => p[1]);
+    traces.push({x: xs, y: ys, mode: 'lines', fill: 'toself',
+      fillcolor: 'rgba(56,189,248,.10)', line: {color: 'rgba(56,189,248,.45)', width: 1},
+      hovertemplate: `建筑 ${b.id}<br>类型 ${b.btype} · 高 ${b.h}m · ${Math.round(b.area)}m²` +
+        `<br>高度来源: ${b.source_height}<extra></extra>`, showlegend: false});
+  }
+  // 道路
+  const roadKinds = {};
+  for (const rd of c.roads) (roadKinds[rd.kind] = roadKinds[rd.kind] || []).push(rd);
+  const kindStyle = {motorway: ['#f87171', 2.2], trunk: ['#f87171', 2.0], primary: ['#fb923c', 1.8],
+                     secondary: ['#fbbf24', 1.4], tertiary: ['#a3e635', 1.1],
+                     residential: ['#94a3b8', 1.0], unclassified: ['#94a3b8', .9],
+                     service: ['#64748b', .8], footway: ['#475569', .7]};
+  for (const [kind, rds] of Object.entries(roadKinds)) {
+    const [color, w] = kindStyle[kind] || ['#64748b', .8];
+    rds.forEach((rd, i) => traces.push({
+      x: rd.line.map(p => p[0]), y: rd.line.map(p => p[1]), mode: 'lines',
+      line: {color, width: w}, name: kind, showlegend: i === 0,
+      hovertemplate: `${rd.name || '(未名道路)'}<br>${rd.kind}<extra></extra>`}));
+  }
+  // 锚点
+  traces.push({x: c.anchors.map(a => a.xy[0]), y: c.anchors.map(a => a.xy[1]),
+    mode: 'markers+text', text: c.anchors.map(a => a.name), textposition: 'top center',
+    textfont: {size: 10, color: '#e2e8f0'},
+    marker: {symbol: 'star', size: 12, color: '#f472b6'},
+    name: '锚点 (POI 查证)', hovertemplate: '%{text}<extra></extra>'});
+  // 原点十字
+  traces.push({x: [-40, 40], y: [0, 0], mode: 'lines', line: {color: 'rgba(244,114,182,.4)', width: 1, dash: 'dot'}, showlegend: false, hoverinfo: 'skip'});
+  traces.push({x: [0, 0], y: [-40, 40], mode: 'lines', line: {color: 'rgba(244,114,182,.4)', width: 1, dash: 'dot'}, showlegend: false, hoverinfo: 'skip'});
+  const layout = {...BASE, height: 520,
+    xaxis: {...BASE.xaxis, title: {text: '东向 E (m)', font: {size: 10}}, scaleanchor: 'y', scaleratio: 1,
+            range: [-1150, 2250]},
+    yaxis: {...BASE.yaxis, title: {text: '北向 N (m)', font: {size: 10}}, range: [-1450, 1850]},
+    legend: {font: {size: 10}, orientation: 'h', y: -0.12},
+    margin: {l: 50, r: 12, t: 8, b: 60}};
+  Plotly.react('campusPlot', traces, layout, {displayModeBar: false});
+  document.getElementById('campusNote').innerHTML =
+    `原点 (0,0) = ${c.origin.lat.toFixed(4)}N, ${c.origin.lon.toFixed(4)}E · ` +
+    `${c.n_buildings} 栋建筑 / ${c.n_roads} 条道路 · ` +
+    `建筑来源: ${c.sources.buildings}; 高度: ${c.sources.heights}<br>${c.sources.coverage_note}`;
+}
+
 loadEpisodes();
+loadCapabilities();
+loadCampus();
+document.getElementById('wmEp').addEventListener('change', fillWmUes);
+document.getElementById('wmRun').addEventListener('click', runWmRollout);
 </script>
 </body>
 </html>

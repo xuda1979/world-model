@@ -14,7 +14,7 @@
 用法: .venv/bin/python world6g/backend/api.py  (127.0.0.1:8811)
 """
 from __future__ import annotations
-import sys, json
+import sys, json, importlib
 from pathlib import Path
 from typing import Optional
 
@@ -169,6 +169,242 @@ def twin_report():
 @app.get("/api/health")
 def health():
     return {"status": "ok", "tables": [r[0] for r in CON.execute("SHOW TABLES").fetchall()]}
+
+
+# ================= 3D 五层数据工作台 =================
+# 五层: 环境特征 / 设备配置 / 电磁传播特征 / 业务特征 / 性能KPI (方案一)
+
+@app.get("/api/scene3d/{episode_id}")
+def scene3d(episode_id: str):
+    """3D 场景全部数据: 地面栅格 radio map + 站点 + UE 轨迹(球) + 五层标注
+    地图: 中国移动信息港 (昌平) — 真实工参经纬度 (episode_1 站点)"""
+    df = _ep_ue_df(episode_id)
+    if df.empty:
+        raise HTTPException(404)
+    t_max = float(df["时间戳(ms)"].max())
+
+    # ---- 第1层 环境特征: 站点(真实工参) + 地面建筑占位 (OSM 布局, 信息港) ----
+    site = _ep_site_df(episode_id)
+    sites = []
+    if not site.empty:
+        for _, s in site.iterrows():
+            sites.append({"cell": s["cell_name"], "az": float(s["azimuth"]),
+                          "h": float(s["height"]), "pci": int(s["pci"]),
+                          "lon": float(s["longitude"]), "lat": float(s["latitude"]),
+                          "tx_pwr": str(s["SSB transmit power"])})
+    # ---- 第2层 设备配置: 动作/配置参数 (NRM 摘要) ----
+    # nrm 表为宽表 (对象类型行 × AntennaFunction 列), 与 episode 无关联 → 仅对真实 episode 返回
+    cfg = []
+    try:
+        if not episode_id.startswith("twin"):
+            nrm = q("SELECT * FROM nrm LIMIT 40")
+            cfg = nrm.fillna("").astype(str).to_dict("records")
+    except Exception:
+        cfg = []
+
+    # ---- 第3层 电磁传播: 地面 radio map 栅格 (RSRP 热力, 60×60m 内插) ----
+    import numpy as _np
+    latest = df[df["时间戳(ms)"] == t_max]
+    gx, gy = _np.mgrid[-450:450:31j, -450:450:31j]
+    from scipy.interpolate import griddata as _gd
+    pts = latest[["位置X", "位置Y"]].values
+    vals = latest["服务小区RSRP(dBm)"].values
+    grid_rsrp = _gd(pts, vals, (gx, gy), method="linear")
+    radio_grid = {"x": gx.tolist(), "y": gy.tolist(),
+                  "rsrp": _np.round(_np.nan_to_num(grid_rsrp, nan=-140.0), 1).tolist()}
+
+    # ---- 第4层 业务特征 + 第5层 性能KPI: UE 球 (type/速率/时延/丢包) ----
+    ues = []
+    for _, r in latest.iterrows():
+        ues.append({
+            "ue": int(r["UEID"]), "type": r["类型"], "x": float(r["位置X"]),
+            "y": float(r["位置Y"]), "z": float(r["位置Z"]),
+            "rsrp": float(r["服务小区RSRP(dBm)"]), "sinr": float(r["服务小区SINR(dB)"]),
+            "cqi": int(r["CQI"]), "dl": float(r["下行速率(Mbps)"]), "ul": float(r["上行速率(Mbps)"]),
+            "lat": float(r["端到端时延(ms)"]), "plr": float(r["丢包率"]),
+            "cell": r["服务小区ID"], "svc": r["业务及需求"],
+            "spd": float(_np.hypot(r["速度X"], r["速度Y"]))})
+    # 轨迹 (细线)
+    traces = []
+    for ueid, g in df.groupby("UEID"):
+        g = g.sort_values("时间戳(ms)")
+        traces.append({"ue": int(ueid), "x": g["位置X"].round(1).tolist(),
+                       "y": g["位置Y"].round(1).tolist(), "z": g["位置Z"].round(1).tolist()})
+
+    # ---- 基站 KPI (cellperf 最新, hover 用) ----
+    cellkpi = []
+    if episode_id.startswith("twin"):
+        cp = pd.read_parquet(GEN_DIR / f"{episode_id}_cellperf.parquet")
+    else:
+        cp = q(f'SELECT * FROM cellperf WHERE episode_id::VARCHAR=\'{episode_id}\'')
+    if not cp.empty:
+        lt = cp[cp["时间戳"] == cp["时间戳"].max()]
+        for _, r in lt.iterrows():
+            cellkpi.append({"cell": r["小区标识"], "conn": int(r["连接数"]),
+                            "thr": float(r["吞吐量(Mbps)"]),
+                            "prb_dl": float(r["下行PRB利用率"]),
+                            "prb_ul": float(r["上行PRB利用率"]),
+                            "cong": float(r["拥塞率"]), "drop": float(r["掉线率"])})
+    return {"sites": sites, "ues": ues, "traces": traces, "radio_grid": radio_grid,
+            "cellkpi": cellkpi, "nrm": cfg, "t_max": t_max,
+            "map_name": "中国移动信息港 (昌平) · 北京移动信息港/城区, OSM 建筑布局"}
+
+
+LAYER_DOCS = {
+    "环境特征": {"能力": "新站预测", "内容": "地图、建筑、候选站址、站高和周边测量",
+                 "渲染": "地面栅格 + 站点扇区 + 建筑体块"},
+    "设备配置": {"能力": "参数调整后的信号预测", "内容": "配置有效期、动作前后参数、实际生效时间",
+                 "渲染": "基站天线属性面板 + NRM 配置"},
+    "电磁传播特征": {"能力": "Radio map 重构", "内容": "MR/MDT、位置与精度、信道和信号栅格",
+                 "渲染": "地面 RSRP 热力栅格"},
+    "业务特征": {"能力": "用户行为预测", "内容": "可关联轨迹、驻留/转移、业务到达或群体分布",
+                 "渲染": "UE 球 (类型/业务/速度) + 轨迹"},
+    "性能KPI": {"能力": "KPI 预测", "内容": "PM 及协议记录、吞吐/连接数/负载、时延与队列",
+                 "渲染": "UE hover 卡 (RSRP/SINR/CQI/速率/时延) + 基站 hover KPI"},
+}
+
+
+@app.get("/api/layers")
+def layers():
+    """五层数据结构说明"""
+    return LAYER_DOCS
+
+
+# ================= 能力演示: 五项能力 + 世界模型动作对照 =================
+
+@app.get("/api/capabilities")
+def capabilities():
+    """方案二 §四 能力演示: 每项能力一张结果卡 (常驻数据来源标识)"""
+    cards = []
+    try:
+        wm = importlib.import_module("twm_serve")
+        info = wm.model_info()
+    except Exception:
+        info = {"available": False}
+    cards.append({
+        "id": "wm", "name": "KPI 预测 (世界模型)",
+        "desc": "动作条件 GRU 世界模型, 训练自同根反事实分支数据; 多步自回归 rollout",
+        "model": info, "source": "GRU-WM v0.2 · twin_action_dataset.parquet (83,200 样本)",
+    })
+    cards.append({
+        "id": "action", "name": "动作效应对照",
+        "desc": "反事实同根分支: az/pmax/prb/ho 四类动作对 RSRP/SINR/DL/CQI 的实测效应",
+        "source": "action_report.json (twin 动作族 48 组)",
+    })
+    cards.append({
+        "id": "fidelity", "name": "统计保真度",
+        "desc": "真实 338 万 MRO 样本 vs Twin 生成: 分布对齐检验",
+        "source": "docs/fidelity_report.json",
+    })
+    cards.append({
+        "id": "chat", "name": "数据湖问答",
+        "desc": "基于 DuckDB/Parquet 的规则问答, 支持 KPI 查询与五层解释",
+        "source": "lake.duckdb (12 表) + generated/",
+    })
+    return cards
+
+
+@app.post("/api/wm/rollout")
+async def wm_rollout(req: dict):
+    """世界模型多步 rollout: {episode_id, ue?, action: {type, value}, steps}
+    返回 baseline 与 action 两条预测轨, 供前端对照"""
+    ep_id = str(req.get("episode_id", ""))
+    action = req.get("action") or {"type": "baseline", "value": 0}
+    steps = int(min(max(int(req.get("steps", 40)), 1), 200))
+    try:
+        wm = importlib.import_module("twm_serve")
+        if wm.load_model() is None:
+            raise HTTPException(503, "GRU-WM model not available")
+        df = _ep_ue_df(ep_id)
+        if df.empty:
+            raise HTTPException(404, f"episode {ep_id} not found")
+        cols = wm._META["state_cols"]; H = wm._META["hist"]
+        ue = int(req.get("ue", df.UEID.iloc[0]))
+        g = df[df.UEID == ue].sort_values("时间戳(ms)")
+        hist = g[cols].values[:H].astype(float)
+        base = wm.predict_rollout(hist, {"type": "baseline"}, steps=steps)
+        acted = wm.predict_rollout(hist, action, steps=steps)
+        t0 = float(g["时间戳(ms)"].iloc[H - 1]) if len(g) > H - 1 else 0.0
+        dt_ms = 50.0
+        return {
+            "episode_id": ep_id, "ue": ue, "action": action, "steps": steps,
+            "state_cols": cols, "dt_ms": dt_ms, "t0": t0,
+            "baseline": base.round(3).tolist(), "acted": acted.round(3).tolist(),
+            "model": wm.model_info(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"rollout failed: {e}")
+
+
+# ================= 园区地图 (中国移动信息港·昌平) =================
+
+@app.get("/api/campus")
+def campus():
+    """园区 OSM 数据: 建筑/道路/锚点 (ENU 米制, 原点=园区西南角)"""
+    try:
+        cp = importlib.import_module("twin.campus")
+        return cp.campus_payload()
+    except Exception as e:
+        raise HTTPException(500, f"campus payload failed: {e}")
+
+
+@app.post("/api/chat")
+async def chat(req: dict):
+    """工作台对话: 基于数据湖的规则问答 (无需外部 LLM 也可演示).
+    支持: 指标查询 / episode 对比 / 五层解释 / KPI 极值"""
+    q_text = str(req.get("q", "")).strip()
+    if not q_text:
+        return {"reply": "请输入问题。可问: 「城区平均RSRP」「低空的SINR对比」「五层是什么」「twin_01 吞吐」"}
+    low = q_text.lower()
+    try:
+        # 五层解释
+        if "五层" in q_text or "5层" in q_text or "层" in q_text and any(k in q_text for k in LAYER_DOCS):
+            hits = [k for k in LAYER_DOCS if k in q_text]
+            if hits:
+                d = LAYER_DOCS[hits[0]]
+                return {"reply": f"「{hits[0]}」层 → 对应能力: {d['能力']}。底座内容: {d['内容']}。本工作台渲染: {d['渲染']}。"}
+            lines = [f"{i+1}. {k} → {v['能力']}: {v['内容'][:30]}…" for i, (k, v) in enumerate(LAYER_DOCS.items())]
+            return {"reply": "五层数据结构:\n" + "\n".join(lines)}
+        # episode 定位 (数字或 twin_xx)
+        import re as _re
+        ep_m = _re.search(r"(twin_\d+|(?<!\d)\d{1,2}(?!\d))", low)
+        ep_id = ep_m.group(1) if ep_m else None
+        # KPI 关键词
+        kpi_map = {"rsrp": ("服务小区RSRP(dBm)", "RSRP", "dBm"),
+                   "sinr": ("服务小区SINR(dB)", "SINR", "dB"),
+                   "吞吐": ("下行速率(Mbps)", "下行速率", "Mbps"),
+                   "速率": ("下行速率(Mbps)", "下行速率", "Mbps"),
+                   "时延": ("端到端时延(ms)", "端到端时延", "ms"),
+                   "cqi": ("CQI", "CQI", "")}
+        kpi_hit = next((v for k, v in kpi_map.items() if k in low), None)
+        if kpi_hit:
+            col, name, unit = kpi_hit
+            if ep_id:
+                dfe = _ep_ue_df(ep_id)
+                if dfe.empty:
+                    return {"reply": f"未找到 episode {ep_id}"}
+                import numpy as _np2
+                v = dfe[col].astype(float)
+                return {"reply": (f"episode {ep_id} 的{name}: 均值 {v.mean():.1f}{unit}, "
+                                  f"P10 {_np2.percentile(v,10):.1f}, 中位 {v.median():.1f}, "
+                                  f"P90 {_np2.percentile(v,90):.1f}, 最大 {v.max():.1f} (n={len(v):,})")}
+            return {"reply": f"请指明 episode, 如「1 的{ name }」或「twin_01 的{name}」"}
+        # 默认: episode 概览
+        if ep_id:
+            eps = episodes()
+            hit = next((e for e in eps if e["id"] == ep_id), None)
+            if hit:
+                return {"reply": (f"episode {ep_id}: 场景 {hit['scene']}, {hit['n_ue']} 终端, "
+                                  f"平均 RSRP {hit['rsrp']}dBm, SINR {hit['sinr']}dB, "
+                                  f"下行 {hit['dl']}Mbps (来源: {hit['source']})")}
+        eps = episodes()
+        real = [e for e in eps if e["source"] == "real"]
+        return {"reply": (f"共 {len(eps)} 个 episode (真实 {len(real)} + Twin {len(eps)-len(real)})。"
+                          "可问: 「城区平均RSRP」「twin_01 吞吐」「五层是什么」。")}
+    except Exception as e:
+        return {"reply": f"查询出错: {e}"}
 
 
 # ---- 前端静态页 ----

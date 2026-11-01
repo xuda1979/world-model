@@ -159,6 +159,20 @@ def main():
         gru_pred = model(Xh_te_t, Xa_te_t).cpu().numpy()
     gru_rmse, gru_mae = rmse_mae(gru_pred, Y_te)
 
+    # ---- 保存模型权重 + 归一化统计 (供 API 推理加载; 方案二 V0.2: 接入首个通过检查的模型) ----
+    MODELS_DIR = PKG_DIR / "models"
+    MODELS_DIR.mkdir(exist_ok=True)
+    torch.save(model.state_dict(), MODELS_DIR / "gru_wm.pt")
+    json.dump({
+        "state_cols": STATE_COLS, "action_types": ACTION_TYPES, "hist": HIST,
+        "mu": mu.tolist(), "sd": sd.tolist(),
+        "a_mu": float(a_mu), "a_sd": float(a_sd),
+        "seed": SEED, "epochs": args.epochs, "params": sum(p.numel() for p in model.parameters()),
+        "trained_at": pd.Timestamp.now().isoformat(timespec="seconds"),
+        "data": "twin_action_dataset.parquet (同根反事实分支, 83,200 样本)",
+    }, open(MODELS_DIR / "gru_wm_meta.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"[models] gru_wm.pt + gru_wm_meta.json -> {MODELS_DIR}")
+
     # 反归一化 per-KPI RMSE (dB/Mbps 原单位)
     def per_kpi(pred):
         return {c: round(float(np.sqrt(((pred - Y_te)[:, i] ** 2).mean()) * sd[i]), 3)
