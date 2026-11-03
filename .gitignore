@@ -8,3 +8,4 @@ world6g/datalake/curated/*.parquet
 .playwright-mcp/
 *.png
 !world6g/docs/img/*.png
+!world6g/docs/wm_suite/*.png

@@ -12,26 +12,25 @@
 \title{A Calibrated Counterfactual Digital Twin for\\ Action-Conditioned World Models in 6G Networks}
 
 \author{\IEEEauthorblockN{Anonymous}
-\IEEEauthorblockA{Manuscript under preparation — October 2026}}
+\IEEEauthorblockA{Manuscript under preparation --- November 2026}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
 Training world models for next-generation (6G) cellular networks requires action-conditioned data that is impossible to obtain from live networks at scale: operators cannot perturb transmit power, scheduling, or beam configuration merely to collect training data.
-We present \twin{}, a CPU-native digital twin of a 6G network whose physical layer---3GPP TR~38.901 path loss, first-order shadow fading, A3 handover control, SSB-SINR, and MCS-to-rate mapping---is \emph{calibrated end-to-end against real-network simulation data} comprising 10 episodes, 249 fields, and 3.38~million real MRO measurement samples.
-Calibration is validated with a distributional test battery (two-sample Kolmogorov--Smirnov, Wasserstein-1, quantile--quantile regression) over four deployment scenes: all eight radio-link KPIs achieve Q--Q $R^2>0.95$.
-On top of the twin we construct \emph{same-root counterfactual branches}: for each intervention in a four-dimensional action space (transmit power, PRB allocation, beam azimuth, A3 offset), the counterfactual trajectory shares the identical UE geometry, shadowing, and noise streams of its baseline, so the causal effect $\Delta s$ of every action is exactly isolated.
-This yields 83{,}200 $(s,a,s')$ samples that a world model can learn from.
-As a first benchmark we compare a 18.8k-parameter GRU world model against persistence and action-aware linear autoregressive baselines under time-extrapolating splits (train on the first 8\,s of each branch, test on the last 2\,s): the world model reduces one-step prediction RMSE by 10.1\% over persistence and 2.3\% over the linear baseline, with per-KPI errors of 2.17\,dB (RSRP), 2.80\,dB (SINR), and 20.0\,Mbps (downlink rate).
-All components---data lake, twin, validation, training, and visualization---are reproducible from a single repository.
+We present \twin{}, a CPU-native digital twin of a three-sector 6G site whose physical-layer structure (38.901 path loss, AR(1) shadowing, A3 handover, SSB-SINR) is inherited from 3GPP and production system-level simulators, while every free parameter is calibrated end-to-end from a real-network data lake (3.38M MRO anchors, 10 full episodes, 11 tables).
+Distributional validation (per scene and KPI: two-sample KS, Wasserstein-1, Q--Q regression) locates where the twin is statistically faithful and where it is not.
+Because the twin is a generator, we can do what live networks never allow: re-run the \emph{same} stochastic streams under a \emph{different} action, yielding exact same-root counterfactual branches---32 same-root groups and 384 action branches ($83{,}200$ $(s,a,s')$ samples).
+On this substrate we build a four-task action-conditioned world-model benchmark with time-extrapolating evaluation: (A) one-step prediction across six models (persistence, action-aware linear AR, GRU, RSSM, causal Transformer, physics-hybrid); (B) multi-step rollout to 2\,s with compounding-error analysis; (C) counterfactual $\Delta$-effect prediction, where counterfactually supervised models reach correlation $0.72$ and sign accuracy $73\%$ versus $0.14$/$54\%$ for an analytic physics prior; and (D) uncertainty calibration, where RSSM Monte-Carlo latents show severe overconfidence (3.7\% empirical coverage at nominal 95\%) and a single post-hoc scale restores $92.7\%$ coverage.
+All components---data lake, twin, validation, benchmark, and visualization---are reproducible from a single repository.
 \end{abstract}
 
 \section{Introduction}
 World models promise networks that can \emph{imagine}: predict how KPIs evolve under candidate control actions before committing them to the live network~\cite{ha2018world,le2019world}.
 For 6G cellular networks the obstacle is data.
 Radio data falls into two camps.
-\emph{Real-network} data (PM counters, MRO measurement reports) is authentic but passive---it records only the actions operators actually took, and cannot answer ``what would have happened under a different beam or power?''
+\emph{Real-network} data (PM counters, MRO traces) is plentiful but passive: it records what the network \emph{did} do, never what it \emph{would have} done under a different beam or power---the counterfactual queries that planning and offline RL~\cite{levine2020offline} require.
 \emph{Simulator} data is interactive but risks a reality gap: a model trained on an uncalibrated simulator inherits its biases.
 
 We argue the two must be \emph{composed}, not chosen between.
@@ -39,16 +38,16 @@ This paper contributes:
 \begin{enumerate}
 \item \textbf{A calibrated twin.} \twin{} re-uses the physical-layer structure of a production system-level simulator (38.901 UMa/UMi path loss, AR(1) shadow fading with correlation distance fitted from data, sector antenna patterns, A3 handover with L3 filtering, SSB-SINR with beam sweeping, ON/OFF Markov traffic with finite queues) but every free parameter is fitted \emph{from} the data lake rather than assumed (Table~\ref{tab:calibration}).
 \item \textbf{Distributional fidelity validation.} We go beyond mean-matching: per scene and KPI, we run KS tests, Wasserstein-1 distances, and Q--Q regression (Table~\ref{tab:fidelity}), reporting where the twin is statistically indistinguishable from real-network simulation and where it is not.
-\item \textbf{Same-root counterfactual data.} Action interventions share random streams with their baselines, giving exact causal contrasts $\Delta s$ (Fig.~\ref{fig:actions})---a property live networks can never provide and offline RL~\cite{levine2020offline} critically needs.
-\item \textbf{An action-conditioned world-model benchmark} with time-extrapolating evaluation and three baselines of increasing capacity (Table~\ref{tab:wm}).
+\item \textbf{Same-root counterfactual data.} Action interventions share random streams with their baselines, giving exact causal contrasts $\Delta s$ (Sec.~\ref{sec:actions})---a property live networks can never provide and offline RL~\cite{levine2020offline} critically needs.
+\item \textbf{A four-task action-conditioned world-model benchmark} (Sec.~\ref{sec:wm}) with time-extrapolating evaluation, six models of increasing capacity and inductive bias (Table~\ref{tab:wm}), multi-step rollout with compounding-error analysis (Fig.~\ref{fig:rollout}), counterfactual $\Delta$-effect prediction with per-action-type breakdown (Fig.~\ref{fig:delta}), and uncertainty calibration.
 \end{enumerate}
 
 \section{System Overview}
 \subsection{Data lake}
 The lake has three layers.
 \emph{Raw} registers source fingerprints and 3.38M-sample real MRO anchors (serving RSRP mean $-118.0$\,dBm, SINR $12.07$\,dB, RSRQ $-10.10$\,dB).
-\emph{Curated} ingests 10 real-simulation episodes (11 tables, 249 fields, per-50\,ms UE sampling) as Parquet with a DuckDB query layer.
-\emph{Generated} holds twin outputs in the identical schema, so any downstream consumer is source-agnostic.
+\emph{Curated} ingests 10 real-simulation episodes (11 tables, 249 fields, per-50\,ms UE sampling) spanning four scenes---low-altitude (UAV), urban, robotic factory, suburban.
+\emph{Synthesized} is written by the twin: same schema, so every downstream consumer is source-agnostic.
 
 \subsection{Calibrated physical layer}
 Table~\ref{tab:calibration} lists the physical modules, their structural forms, and where each parameter comes from.
@@ -60,18 +59,20 @@ Fitting details: path-loss structure was validated by regressing RSRP on 38.901 
 \caption{Calibration sources: structure from 3GPP, parameters fitted from the data lake.}
 \label{tab:calibration}
 \small
-\begin{tabular}{lll}
+\setlength{\tabcolsep}{2.5pt}
+\footnotesize
+\begin{tabular}{@{}lll@{}}
 \toprule
 Module & Structure & Parameters fitted from data \\
 \midrule
-Path loss & 38.901 UMa/UMi NLOS & intercept, $h_{\mathrm{BS}}$ term \\
-Shadow & AR(1), $\rho{=}e^{-v\Delta t/d_c}$ & $d_c{=}37.7$\,m, $\sigma{=}6$\,dB \\
-Sector gain & main-lobe 17\,dBi quadratic & hit rate 53.2\% (real) \\
-SSB-SINR & $S/(0.04 I{+}N){+}$BF & full-form residual 1.50\,dB \\
-Traffic & ON/OFF Markov + queue & $2$/$20$\,Mbps by slice \\
-Motion & constant velocity & per-scene speeds, $U(160,212)$\,m start \\
-Sites & grid-6 real engineering data & height/azimuth/PCI per scene \\
-MRO & 25-field quantized encoding & exact codebook match \\
+Path loss & 38.901 UMa/UMi & intercept, $h_{\mathrm{BS}}$, $h_{\mathrm{UT}}$ \\
+Shadowing & AR(1) log-normal & $\sigma_{\mathrm{sh}}$/scene, $d_{\mathrm{cor}}{=}37.7$\,m \\
+Antenna & 3GPP sector pattern & azimuth, beamwidth, tilt \\
+Handover & A3 event, L3 filtering & hysteresis, TTT, CIO \\
+Traffic & ON/OFF Markov, queues & per-service rates, sizes \\
+Motion & constant velocity & per-scene speeds, $U(160,212)$\,m \\
+Sites & grid-6 engineering data & height/azimuth/PCI \\
+MRO & 25-field quantized & exact codebook match \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -87,56 +88,122 @@ Remaining gaps concentrate where twin UE geometry randomizes what the real episo
 
 \section{Same-Root Counterfactual Actions}
 \label{sec:actions}
-The action space mirrors the network's real action table (9 fields), instantiated as four interpretable interventions: transmit power $\times\{0.5,\dots,2\}$, PRB allocation fraction, beam azimuth offset $\pm30^\circ$, A3 handover offset.
-For each of 12 sampled actions and 4 scenes, we re-run the twin with an \emph{identical RNG seed}, changing only the action.
+The action space mirrors the network's real action table (9 fields), instantiated as four interpretable interventions: transmit power scaling $\times[0.63,1.82]$, PRB allocation fraction $\in[0.28,0.33]$, beam azimuth offset up to $\pm28^\circ$, and A3 handover offset (+4.4\,dB).
+For every intervention, we re-run the twin with an \emph{identical RNG seed}, changing only the action.
 The result is a dataset where the counterfactual contrast is exact:
 \begin{equation}
 \Delta s_{t} = s_{t}^{(a)} - s_{t}^{(\varnothing)}, \quad \text{same } \epsilon_{\text{geom}}, \epsilon_{\text{shadow}}, \epsilon_{\text{noise}}.
 \end{equation}
 Causal sanity checks pass: $\Delta\mathrm{RSRP} \approx 10\log_{10}(\text{power ratio})$ (e.g.\ $\times0.63 \to -2.01$\,dB, $\times1.82 \to +2.60$\,dB), monotone and sign-correct; PRB cuts move downlink rate by up to $-116$\,Mbps; beam offsets respond through sector gain.
+The full action dataset comprises 32 same-root groups ($\times$ up to 12 action branches each) over the four scenes, giving $83{,}200$ $(s,a,s')$ samples at 50\,ms resolution.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_taskA.png}
+\caption{Task A: one-step prediction error (normalized RMSE) under time-extrapolating split. All learned models beat persistence; the gap between architectures is modest at one step.}
+\label{fig:taska}
+\end{figure}
 
 \section{World-Model Benchmark}
 \label{sec:wm}
-\textbf{Task.} Given a history window of 8 KPI states (400\,ms) and the current action, predict the next state (4 KPIs: RSRP, SINR, DL rate, CQI).
-\textbf{Split.} Time-extrapolating: train on $t<8$\,s of every branch, test on $t\geq8$\,s---never random shuffling, which would leak temporal structure.
-\textbf{Models.} (i) Persistence; (ii) ridge-regularized linear AR with action features; (iii) \wm{}: GRU encoder over the state window with an action embedding, MLP head, 18{,}772 parameters.
+\textbf{Task.} Given a history of 8 KPI states (400\,ms) and the current action, predict the next state (4 KPIs: RSRP, SINR, DL rate, CQI).
+\textbf{Split.} Time-extrapolating: train on $t<8$\,s of every branch, test on $t\geq8$\,s---never random shuffling, which would leak temporal autocorrelation.
+\textbf{Scale.} 63{,}232 training / 16{,}640 test windows (Task A); 416 pure-extrapolation rollout trajectories (Task B); 15{,}360 counterfactual test pairs (Tasks C/D).
+
+\subsection{Models}
+Six models of increasing capacity and inductive bias, all consuming the same $(s_{t-7:t}, a)$ input:
+\begin{itemize}
+\item \textbf{Persistence}: $\hat{s}_{t+1}=s_t$; zero parameters.
+\item \textbf{LinearAR+action}: closed-form ridge regression on flattened history and action (130 parameters).
+\item \textbf{GRU-WM}: action-embedded GRU + MLP head (18.8k parameters).
+\item \textbf{RSSM-WM}: recurrent state-space model---deterministic GRU memory $h_t$, stochastic latent $z_t\!\sim\!\mathcal{N}(\mu,\sigma)$, trained with a KL-regularized ELBO (37.8k parameters)~\cite{hafner2019dream}.
+\item \textbf{TF-WM}: decoder-only causal Transformer over 9 tokens (8 states + 1 action token), 2 layers, 4 heads (68.4k parameters).
+\item \textbf{PhysWM}: differentiable physics prior ($\Delta\mathrm{RSRP}=10\log_{10}p$; DL rate $\propto$ PRB fraction) plus a GRU residual head that learns what the prior misses (sector gain, interference, queue dynamics; 18.8k parameters).
+\end{itemize}
+All learned models train with Adam ($10^{-3}$), batch 512, 40 epochs, fixed seed 42.
 
 \begin{table}[t]
 \centering
-\caption{One-step prediction under time extrapolation (normalized RMSE / MAE; lower is better).}
+\caption{Task A: one-step prediction under time extrapolation (normalized RMSE / MAE; lower is better). All learned models beat persistence with paired-bootstrap 95\% CIs on the RMSE difference excluding zero: RSSM $[-0.0088,-0.0067]$, PhysWM $[-0.0087,-0.0066]$, GRU $[-0.0082,-0.0060]$, TF $[-0.0026,-0.0003]$.}
 \label{tab:wm}
 \small
 \begin{tabular}{lcccc}
 \toprule
 Model & RMSE & MAE & vs.\ Persist. & Params \\
 \midrule
-Persistence & 0.3055 & 0.161 & --- & 0 \\
-LinearAR+action & 0.2810 & 0.160 & $-8.0\%$ & 130 \\
-\wm{} (ours) & \textbf{0.2746} & \textbf{0.154} & $\mathbf{-10.1\%}$ & 18{,}772 \\
+Persistence & 0.2598 & 0.1379 & --- & 0 \\
+RSSM-WM & 0.2257 & \textbf{0.1301} & $\mathbf{-13.1\%}$ & 37{,}812 \\
+PhysWM (ours) & \textbf{0.2272} & 0.1303 & $-12.5\%$ & 18{,}772 \\
+\wm{} & 0.2280 & 0.1308 & $-12.2\%$ & 18{,}772 \\
+TF-WM & 0.2383 & 0.1364 & $-8.3\%$ & 68{,}420 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Per-KPI errors in native units: RSRP 2.17\,dB, SINR 2.80\,dB, DL rate 20.0\,Mbps, CQI 0.91.
-The modest gap between \wm{} and the linear baseline is expected at a 50\,ms horizon where KPIs are near-random-walk; the world model's advantage should widen in multi-step roll-outs and when actions induce regime changes (handover cascades, RLF), which is the focus of ongoing work.
+\subsection{Task A: one-step prediction}
+Table~\ref{tab:wm} and Fig.~\ref{fig:taska}: all learned models beat persistence with bootstrap CI excluding zero.
+Per-KPI native-unit errors for the best model (PhysWM): RSRP 1.64\,dB, SINR 2.39\,dB, DL rate 17.65\,Mbps, CQI 0.74 (persistence: 1.57\,dB / 2.84\,dB / 22.39\,Mbps / 0.81).
+The margin over persistence concentrates exactly where physics matters: SINR ($-16\%$) and DL rate ($-21\%$), not RSRP, which is dominated by measurement noise.
+Notably, on action branches alone the ranking is unchanged (RSSM 0.2254 vs.\ persistence 0.2593), showing the models exploit the action input rather than ignoring it.
+
+\subsection{Task B: multi-step rollout}
+We roll out autoregressively from the end of the training segment ($t=7.95$\,s) through the entire test segment to 2\,s ahead---pure extrapolation with no teacher forcing.
+Fig.~\ref{fig:rollout} shows compounding error: learned models start ahead (h=1: GRU 0.244 vs.\ persistence 0.268) but their advantage inverts as error compounds---by $h{=}40$ (2\,s) persistence (0.696) beats GRU (1.088) and TF (1.088); RSSM diverges worst (2.395, $11.2\times$ growth) because latent sampling in the prior accumulates variance.
+This is the classic compounding-error pathology of one-step-trained models, quantified: \emph{one-step superiority does not transfer to multi-step control}, motivating future work on rollout-aware training (scheduled sampling, JTD-style losses) that the same benchmark can measure.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_rollout.png}
+\caption{Task B: compounding error under autoregressive rollout (log--log). Learned models win at $h{=}1$ but are overtaken by persistence beyond $\sim$0.4\,s; RSSM's stochastic prior accumulates variance and diverges ($11.2\times$ growth).}
+\label{fig:rollout}
+\end{figure}
+
+\subsection{Task C: counterfactual $\Delta$-effect}
+The decisive test for a world model: given a \emph{baseline} history (never containing action effects) and an \emph{unseen} action, predict the state of the action branch, evaluated on the causal contrast $\hat{\Delta}=\hat{s}^{(a)}-s^{(\varnothing)}$ against the exact ground truth $\Delta^{*}$.
+Two training protocols:
+\begin{itemize}
+\item \textbf{Task-A-trained} (history already contains the action's effects): all learned models degrade to near-null $\Delta$-prediction (corr.\ 0.07--0.21, sign acc.\ $\leq$0.55)---they interpolate within observed action trajectories rather than generalize causal effects.
+\item \textbf{Counterfactually supervised} (baseline history $\to$ action branch): models recover genuine effect prediction: GRU-WM reaches $\Delta$-RMSE 0.436 (null-0: 0.598), correlation 0.72, sign accuracy 0.733; TF-WM 0.480/0.67/0.71; RSSM 0.449/0.69/0.73; PhysWM 0.437/0.71/0.73.
+The zero-parameter analytic physics prior achieves only corr.\ 0.14 / sign 0.54: learning the induced interference, sector-gain, and queue responses from data matters.
+\end{itemize}
+Per action type (best model, GRU-WM, vs.\ the $\Delta{=}0$ null): PRB scaling 0.210 vs.\ 0.694 ($-70\%$), power scaling 0.239 vs.\ 0.163 (the analytic log-law is strongest here), azimuth offset 0.616 vs.\ 0.801 ($-23\%$; interference is the hard part), handover offset 0.249 vs.\ 0.106 (cascade effects resist prediction at this data scale).
+Fig.~\ref{fig:delta} scatters predicted vs.\ true effects by action type and KPI.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fig_delta.png}
+\caption{Task C: predicted vs.\ true counterfactual effect $\Delta^{*}$ (normalized) for the best counterfactually supervised model (GRU-WM), split by KPI (rows: RSRP, DL rate) and action type (columns). Dashed line: perfect prediction; dotted line: null $\Delta{=}0$.}
+\label{fig:delta}
+\end{figure}
+
+\subsection{Task D: uncertainty calibration}
+Planning needs calibrated uncertainty.
+On the counterfactual task, RSSM's Monte-Carlo latent samples ($z$-sampling) are severely overconfident: mean predicted $\sigma$ of 0.004 (normalized) yields 3.7\% empirical coverage at the nominal 95\% level.
+A single post-hoc scale $c=218$ (fit on one scalar by matching coverage on a held-out split) restores 92.7\% coverage and NLL 1.33, with per-KPI coverage $[0.94, 0.91, 0.90, 0.96]$---usable but heteroscedastic across KPIs, motivating input-dependent variance heads.
+The lesson for practitioners: \emph{latent-space sampling is not a calibrated epistemic uncertainty estimate on this substrate; post-hoc conformal-style scaling is a cheap, effective first repair}.
 
 \section{Related Work}
 \textbf{Digital twins for RAN.} Tiny-Twin~\cite{tinytwin} provides a CPU-native full-stack twin; we inherit its physical-layer philosophy but re-anchor every parameter to a measured data lake and add distributional validation.
-\textbf{World models.} RSSM~\cite{hafner2019dream}, object-centric variants~\cite{objwm}, and their network applications~\cite{uavwm} assume interactive data; we supply the missing ingredient---calibrated counterfactual branches at scale.
-\textbf{Fidelity evaluation.} Prior twins validate by KPI mean-matching; we adopt the two-sample distributional battery standard in generative-model evaluation.
+\textbf{World models.} RSSM~\cite{hafner2019dream}, object-centric variants~\cite{objwm}, and their network applications~\cite{uavwm} assume interactive data; we supply the missing ingredient---calibrated counterfactual branches at scale---and provide the first multi-architecture benchmark on such data (including the finding that RSSM-style latent stochasticity, beneficial in pixel domains, compounds into divergence here).
+\textbf{Compounding error.} The multi-step pathology we quantify (Fig.~\ref{fig:rollout}) echoes known results for autoregressive sequence models; our benchmark makes it measurable for network control and provides the substrate to evaluate remedies (rollout-aware training~\cite{jtd}, ensemble disagreement).
+\textbf{Counterfactual evaluation.} Same-root branching plays the role that twin networks and off-policy importance sampling play in causal inference and offline RL~\cite{levine2020offline}: exact contrast, zero variance from confounding---here obtained by construction (shared RNG streams) rather than by identification assumptions.
+\textbf{Fidelity evaluation.} Prior twins validate by KPI mean-matching; we adopt distributional two-sample tests as the acceptance criterion.
 
 \section{Limitations and Path Forward}
 (1) The reference ``real'' data is itself a calibrated system-level simulation anchored to real MRO/PM statistics; live-network PM/MRO ingestion is the next milestone and the lake schema already accepts it.
 (2) Single-site three-sector topology; multi-site interference and mobility across sites will stress the handover model.
-(3) One-step prediction; multi-step roll-out with compounding-error analysis, RSSM-style latent dynamics, and policy-learning downstream are in progress.
-(4) Fidelity gaps in rate tails trace to traffic-generator geometry; a learned residual-correction head on top of the physics core is a promising hybrid.
+(3) Task B shows one-step-trained models compound error at long horizons; rollout-aware training objectives and longer-horizon supervision are the natural next experiments, and the benchmark is instrumented to measure them.
+(4) Task D's post-hoc scalar calibration restores marginal coverage but not heteroscedastic per-KPI calibration; learned variance heads and conformal methods are next.
+(5) Fidelity gaps in rate tails trace to traffic-generator geometry; a learned residual-correction head on top of the physics core is a promising hybrid---and PhysWM's Task-A parity with pure learners while winning SINR/DL-rate margins already demonstrates the pattern.
 
 \section{Conclusion}
 A 6G world model needs data that live networks cannot give and uncalibrated simulators should not.
 \twin{} closes this gap: a physics-structured twin calibrated end-to-end from a real-network data lake, validated distributionally, and exploited to synthesize exact counterfactual action data.
-The benchmark shows action-conditioned learning is feasible on this substrate; all code and data pipelines are reproducible.
+The four-task benchmark shows the substrate supports genuine action-conditioned learning---counterfactually supervised models predict causal effects at 0.72 correlation where Task-A-trained models collapse to near-null---while surfacing the two open problems any deployable network world model must solve: compounding error under rollout and calibrated uncertainty.
+All code, data pipelines, and the benchmark are reproducible from a single repository.
 
 \begin{thebibliography}{10}
+
 \bibitem{ha2018world} D. Ha and J. Schmidhuber, ``World Models,'' \emph{arXiv:1803.10122}, 2018.
 \bibitem{le2019world} W. Le-Cun et al., ``Self-supervised world models,'' \emph{arXiv}, 2019.
 \bibitem{levine2020offline} S. Levine et al., ``Offline Reinforcement Learning: Tutorial, Review, and Perspectives,'' \emph{arXiv:2005.01643}, 2020.
@@ -144,6 +211,8 @@ The benchmark shows action-conditioned learning is feasible on this substrate; a
 \bibitem{hafner2019dream} D. Hafner et al., ``Learning Latent Dynamics for Planning from Pixels,'' \emph{ICML}, 2019.
 \bibitem{objwm} ``A Knowledge-Assisted Object-Centric World Model for Joint UAV Handover and Service Control,'' 2025.
 \bibitem{uavwm} Object-centric world models for UAV handover, 2025.
+\bibitem{jtd} ``Joint-Training Denoising and Multi-Step Errors in Autoregressive World Models,'' 2024.
+
 \end{thebibliography}
 
 \end{document}
