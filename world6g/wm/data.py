@@ -136,6 +136,46 @@ def branch_windows(groups: list[SameRootGroup], hist: int = HIST):
     return samples
 
 
+# ---------------- Task B (v2): 多步 rollout 训练采样 ----------------
+def rollout_windows(groups: list[SameRootGroup], k: int, hist: int = HIST,
+                    n_per_branch: int = 4, seed: int = 42):
+    """多步 rollout 训练样本: 从每条分支随机截取连续子序列。
+
+    每样本: xh = s[t-hist+1 .. t] (hist 步历史), xa = 动作,
+             y_k = s[t+1 .. t+k] (k 步目标序列, [k,S]) — 供多步一致性损失。
+
+    约束: 目标末时刻完全落在训练段 (t+k+1 <= len(s) 且 times[t+k] < TRAIN_MS),
+    与 Task A/B 同一时间切分协议 → 测试段 8000ms+ 保持纯外推。
+
+    n_per_branch: 每分支随机采样窗口数 (416 分支 × n → ~1.6k 样本 @ n=4)。
+    """
+    rng = np.random.default_rng(seed)
+    samples = []
+    for grp in groups:
+        for br in [grp.baseline] + grp.actions:
+            s = br.states
+            xa = action_vec(br.action_type, br.action_value)
+            T = len(s)
+            # t 上界: k 步目标仍在训练时间内
+            t_max = min(T - k - 1,
+                        int(np.searchsorted(br.times_ms, TRAIN_MS) - k - 1))
+            if t_max < hist - 1:
+                continue
+            ts = rng.integers(hist - 1, t_max + 1, size=n_per_branch)
+            for t in ts:
+                t = int(t)
+                samples.append({
+                    "xh": s[t - hist + 1: t + 1],
+                    "xa": xa,
+                    "y_k": s[t + 1: t + 1 + k],
+                    "t_ms": float(br.times_ms[t + 1]),
+                    "scene": br.scene, "action_label": br.action_label,
+                    "ue": br.ue, "action_type": br.action_type,
+                    "action_value": br.action_value,
+                })
+    return samples
+
+
 # ---------------- Task C: 反事实对 (基准 → 动作分支) ----------------
 def counterfactual_pairs(groups: list[SameRootGroup], hist: int = HIST):
     """同根反事实对: 输入=基准分支轨迹 (a=∅), 目标=动作分支 (a≠∅) 同时刻状态.

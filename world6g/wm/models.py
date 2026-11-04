@@ -93,11 +93,27 @@ class GRUWM(nn.Module):
         self.act_emb = nn.Sequential(nn.Linear(n_act, 16), nn.ReLU())
         self.gru = nn.GRU(n_state + 16, hid, batch_first=True)
         self.head = nn.Sequential(nn.Linear(hid, 32), nn.ReLU(), nn.Linear(32, n_state))
+        self.sigma_head = None            # 可选: 异方差 NLL 训练时装配 (Task D v2)
 
-    def forward(self, xh, xa):
+    def forward(self, xh, xa, return_sigma: bool = False):
         a = self.act_emb(xa).unsqueeze(1).expand(-1, xh.shape[1], -1)
         z, _ = self.gru(torch.cat([xh, a], -1))
-        return self.head(z[:, -1])
+        y = self.head(z[:, -1])
+        if return_sigma:
+            return y, self._sigma(z[:, -1])
+        return y
+
+    def _sigma(self, feat):
+        """softplus + 下界 1e-3, 上限 5 (归一化空间) — 防数值塌缩/爆炸"""
+        assert self.sigma_head is not None, "sigma_head not installed"
+        s = F.softplus(self.sigma_head(feat)) + 1e-3
+        return s.clamp(max=5.0)
+
+    def install_sigma_head(self):
+        """NLL 训练前调用: 在主干特征上装配 logvar 头"""
+        hid = self.head[0].in_features
+        self.sigma_head = nn.Sequential(nn.Linear(hid, 32), nn.ReLU(), nn.Linear(32, N_STATE))
+        return self
 
 
 # ============================================================
@@ -127,8 +143,9 @@ class RSSMWM(nn.Module):
                                    nn.Linear(64, 2 * z_dim))
         self.head = nn.Sequential(nn.Linear(h_dim + z_dim, 64), nn.ReLU(),
                                   nn.Linear(64, n_state))
+        self.sigma_head = None            # 可选: 异方差 NLL (Task D v2)
 
-    def forward(self, xh, xa, sample: bool = False):
+    def forward(self, xh, xa, sample: bool = False, return_sigma: bool = False):
         """xh [B,H,S] 归一化历史, xa [B,2] 动作 → ŷ [B,S] (下一时刻均值)
 
         训练: z 从后验采样 (随机正则); 推理 (eval): 后验均值 (确定性 rollout, 不发散)。
@@ -145,12 +162,29 @@ class RSSMWM(nn.Module):
                 z = mu + (0.5 * logvar).exp() * torch.randn_like(mu)
             else:
                 z = mu
-        return self.head(torch.cat([h, z], -1))
+        feat = torch.cat([h, z], -1)
+        y = self.head(feat)
+        if return_sigma:
+            return y, self._sigma(feat)
+        return y
 
     def forward_with_logvar(self, xh, xa):
         """返回 (ŷ, σ²_aleatoric) — Task D 校准用 (MC-z)"""
         out = self.forward(xh, xa, sample=True)
         return out, None
+
+    def _sigma(self, feat):
+        """softplus + 下界 1e-3, 上限 5 — 防数值塌缩/爆炸"""
+        assert self.sigma_head is not None, "sigma_head not installed"
+        s = F.softplus(self.sigma_head(feat)) + 1e-3
+        return s.clamp(max=5.0)
+
+    def install_sigma_head(self):
+        """NLL 训练前调用: 在 [h, z] 特征上装配 σ 头"""
+        feat_dim = self.head[0].in_features
+        self.sigma_head = nn.Sequential(nn.Linear(feat_dim, 32), nn.ReLU(),
+                                        nn.Linear(32, N_STATE))
+        return self
 
 
 # ============================================================
@@ -225,6 +259,7 @@ class PhysWM(nn.Module):
         self.act_emb = nn.Sequential(nn.Linear(N_ACT, 16), nn.ReLU())
         self.gru = nn.GRU(n_state + 16, hid, batch_first=True)
         self.head = nn.Sequential(nn.Linear(hid, 32), nn.ReLU(), nn.Linear(32, n_state))
+        self.sigma_head = None            # 可选: 异方差 NLL (Task D v2)
 
     def set_norm(self, a_mu: float, a_sd: float):
         self.a_mu, self.a_sd = a_mu, a_sd
@@ -253,13 +288,28 @@ class PhysWM(nn.Module):
         out[:, 2] = out[:, 2] * v_prb
         return out
 
-    def forward(self, xh, xa):
+    def forward(self, xh, xa, return_sigma: bool = False):
         if not hasattr(self, "sd") or self.sd is None:
             raise RuntimeError("PhysWM.sd not set — call set_state_sd() first")
         a = self.act_emb(xa).unsqueeze(1).expand(-1, xh.shape[1], -1)
         z, _ = self.gru(torch.cat([xh, a], -1))
         residual = self.head(z[:, -1])
-        return self.physics_prior(xh[:, -1], xa) + residual
+        y = self.physics_prior(xh[:, -1], xa) + residual
+        if return_sigma:
+            return y, self._sigma(z[:, -1])
+        return y
+
+    def _sigma(self, feat):
+        """softplus + 下界 1e-3, 上限 5 — 防数值塌缩/爆炸"""
+        assert self.sigma_head is not None, "sigma_head not installed"
+        s = F.softplus(self.sigma_head(feat)) + 1e-3
+        return s.clamp(max=5.0)
+
+    def install_sigma_head(self):
+        """NLL 训练前调用: 在 GRU 特征上装配 σ 头"""
+        hid = self.head[0].in_features
+        self.sigma_head = nn.Sequential(nn.Linear(hid, 32), nn.ReLU(), nn.Linear(32, N_STATE))
+        return self
 
     def set_state_sd(self, sd):
         self.sd = sd          # np.array [S] → 注册为 buffer

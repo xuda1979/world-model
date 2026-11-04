@@ -92,7 +92,7 @@ def eval_task_a(all_models, norm, ws_test, results):
 # ============================================================
 # Task B: 多步 rollout
 # ============================================================
-def eval_task_b(all_models, norm, ws_test, results, device):
+def eval_task_b(all_models, norm, ws_test, results, device, ms_models=None):
     log("Task B: multi-step rollout (compounding error)")
     K = max(HORIZONS)
     # 取测试段内每条分支每 UE 的最长连续窗 (从 t<8000 末尾起 rollout 到 t>=8000)
@@ -126,8 +126,10 @@ def eval_task_b(all_models, norm, ws_test, results, device):
 
     task_b = {"n_windows": len(roll_sets), "horizons_ms": [h * D.STEP_MS for h in HORIZONS]}
     curves = {}
-    for name, model in all_models.items():
-        model = model
+    pool = dict(all_models)
+    if ms_models:
+        pool.update({n + "-MS": m for n, m in ms_models.items()})
+    for name, model in pool.items():
         pred_roll = MT.rollout(model, torch.tensor(Xh0_n), torch.tensor(Xa0_n), K)
         hr = MT.horizon_rmse(pred_roll, True_n)
         curves[name] = hr.tolist()
@@ -138,6 +140,15 @@ def eval_task_b(all_models, norm, ws_test, results, device):
             "growth_x": round(float(hr[K - 1] / max(hr[0], 1e-9)), 2),
         }
         log(f"  {name:16s} h1={hr[0]:.4f} h40={hr[-1]:.4f} ({hr[-1] / hr[0]:.2f}x)")
+    # MS 变体 vs 基线: h40 改进
+    if ms_models:
+        task_b["ms_improvement"] = {}
+        for n in ms_models:
+            if n in task_b:
+                imp = 1 - task_b[n + "-MS"]["rmse_h40"] / max(task_b[n]["rmse_h40"], 1e-9)
+                task_b["ms_improvement"][n] = round(float(imp), 4)
+                log(f"  MS-improve {n:8s} h40: {task_b[n]['rmse_h40']:.4f} → "
+                    f"{task_b[n + '-MS']['rmse_h40']:.4f} ({imp * 100:+.1f}%)")
     results["task_b"] = task_b
     return curves, (Xh0_n, Xa0_n, True_n, roll_sets)
 
@@ -255,9 +266,9 @@ def eval_task_c(all_models, norm, groups, results, cf_models=None, epochs: int =
 
 
 # ============================================================
-# Task D: 不确定性校准 (RSSM MC-z, 反事实任务)
+# Task D: 不确定性校准 (v2: 异方差 NLL vs MC-z, 反事实任务)
 # ============================================================
-def eval_task_d(cf_models, norm, groups, results):
+def eval_task_d(cf_models, norm, groups, results, nll_models=None, epochs: int = 40):
     log("Task D: uncertainty quantification & calibration (counterfactual task)")
     cf = D.counterfactual_pairs(groups)
     tr, te = D.train_test_split(cf)
@@ -267,42 +278,94 @@ def eval_task_d(cf_models, norm, groups, results):
     Y_n = norm.state(Y).astype(np.float32)
     task_d = {"n_test": len(te)}
 
+    # ---------- v1 对照: RSSM MC-z (MSE 训练, 无 σ 头) ----------
     model = cf_models.get("RSSM-WM")
-    if model is None:
+    if model is not None:
+        model.eval()
+        with torch.no_grad():
+            p_det = model(torch.tensor(Xh_n), torch.tensor(Xa_n)).numpy()
+        outs = []
+        with torch.no_grad():
+            for _ in range(30):
+                outs.append(model(torch.tensor(Xh_n), torch.tensor(Xa_n),
+                                  sample=True).numpy())
+        outs = np.stack(outs)
+        mu, sigma = outs.mean(0), outs.std(0)
+        task_d["rssm_mc_z"] = {
+            "nll": round(MT.gaussian_nll(mu, Y_n, sigma), 4),
+            "coverage_95": round(MT.coverage(mu, Y_n, sigma), 4),
+            "mean_sigma_norm": round(float(sigma.mean()), 4),
+            "rmse": round(MT.rmse(mu, Y_n), 4),
+        }
+        # 事后温度校准: σ' = c·σ 使 cov95 = 0.95
+        resid = np.abs(p_det - Y_n)
+        c = float(np.quantile(resid / np.maximum(sigma, 1e-3), 0.95) / 1.96)
+        task_d["posthoc_scale"] = round(c, 3)
+        task_d["posthoc_coverage_95"] = round(MT.coverage(p_det, Y_n, c * sigma), 4)
+        task_d["posthoc_nll"] = round(MT.gaussian_nll(p_det, Y_n, c * sigma), 4)
+        cov_kpi = []
+        for i in range(Y_n.shape[1]):
+            cov_kpi.append(round(MT.coverage(p_det[:, i], Y_n[:, i], c * sigma[:, i]), 4))
+        task_d["posthoc_coverage_95_per_kpi"] = cov_kpi
+        log(f"  [v1] RSSM MC-z (CF-supervised): σ̄={sigma.mean():.4f} "
+            f"cov95={task_d['rssm_mc_z']['coverage_95']:.3f} → post-hoc c={c:.2f} "
+            f"cov95={task_d['posthoc_coverage_95']:.3f} per-KPI={cov_kpi}")
+
+    # ---------- v2: 异方差 NLL (σ 头, 混合训练集上学习) ----------
+    if not nll_models:
         results["task_d"] = task_d
         return task_d
-    # 确定性均值 (eval 模式)
-    model.eval()
-    with torch.no_grad():
-        p_det = model(torch.tensor(Xh_n), torch.tensor(Xa_n)).numpy()
-    # MC-z: sample=True
-    outs = []
-    with torch.no_grad():
-        for _ in range(30):
-            outs.append(model(torch.tensor(Xh_n), torch.tensor(Xa_n),
-                              sample=True).numpy())
-    outs = np.stack(outs)
-    mu, sigma = outs.mean(0), outs.std(0)
-    task_d["rssm_mc_z"] = {
-        "nll": round(MT.gaussian_nll(mu, Y_n, sigma), 4),
-        "coverage_95": round(MT.coverage(mu, Y_n, sigma), 4),
-        "mean_sigma_norm": round(float(sigma.mean()), 4),
-        "rmse": round(MT.rmse(mu, Y_n), 4),
+    task_d["v2"] = {}
+    for name, model in nll_models.items():
+        model.eval()
+        entry = {}
+        with torch.no_grad():
+            if name == "RSSM-WM":
+                # 组合不确定性: μ/σ 由 NLL 训练的 σ 头给出;
+                # 认知部分: MC-z 采样 30 次 (后验均值之差), 与 aleatoric σ 正交组合
+                mu_s, sig_s = [], []
+                for _ in range(30):
+                    y, s = model(torch.tensor(Xh_n), torch.tensor(Xa_n),
+                                 sample=True, return_sigma=True)
+                    mu_s.append(y.numpy())
+                    sig_s.append(s.numpy())
+                mu_s, sig_s = np.stack(mu_s), np.stack(sig_s)
+                mu = mu_s.mean(0)
+                sigma_ale = sig_s.mean(0)               # 偶然不确定性 (数据噪声)
+                sigma_epi = mu_s.std(0)                 # 认知不确定性 (z 后验)
+                sigma = np.sqrt(sigma_ale ** 2 + sigma_epi ** 2)
+                entry["sigma_ale_mean"] = round(float(sigma_ale.mean()), 4)
+                entry["sigma_epi_mean"] = round(float(sigma_epi.mean()), 4)
+            else:
+                y, s = model(torch.tensor(Xh_n), torch.tensor(Xa_n),
+                             return_sigma=True)
+                mu, sigma = y.numpy(), s.numpy()
+        entry.update({
+            "nll": round(MT.gaussian_nll(mu, Y_n, sigma), 4),
+            "coverage_95": round(MT.coverage(mu, Y_n, sigma), 4),
+            "ece": round(MT.ece_regression(mu, Y_n, sigma), 4),
+            "mean_sigma_norm": round(float(sigma.mean()), 4),
+            "rmse": round(MT.rmse(mu, Y_n), 4),
+        })
+        # 事后温度校准 (同 v1 协议)
+        resid = np.abs(mu - Y_n)
+        c = float(np.quantile(resid / np.maximum(sigma, 1e-3), 0.95) / 1.96)
+        entry["posthoc_scale"] = round(c, 3)
+        entry["posthoc_coverage_95"] = round(MT.coverage(mu, Y_n, c * sigma), 4)
+        entry["posthoc_nll"] = round(MT.gaussian_nll(mu, Y_n, c * sigma), 4)
+        task_d["v2"][name] = entry
+        log(f"  [v2] {name:12s} σ̄={entry['mean_sigma_norm']:.4f} "
+            f"cov95={entry['coverage_95']:.3f} ECE={entry['ece']:.4f} "
+            f"NLL={entry['nll']:.4f} → post-hoc c={c:.2f} "
+            f"cov95={entry['posthoc_coverage_95']:.3f}")
+
+    # ---------- v2 vs v1 摘要 ----------
+    v2_best = min(task_d["v2"].items(), key=lambda kv: kv[1]["nll"])
+    task_d["v2_summary"] = {
+        "best_nll_model": v2_best[0],
+        "note": "v1 = MC-z from MSE-trained RSSM (uncalibrated); "
+                "v2 = heteroscedastic NLL-trained sigma heads",
     }
-    # 事后温度校准: σ' = c·σ 使 cov95 = 0.95
-    resid = np.abs(p_det - Y_n)
-    c = float(np.quantile(resid / np.maximum(sigma, 1e-3), 0.95) / 1.96)
-    task_d["posthoc_scale"] = round(c, 3)
-    task_d["posthoc_coverage_95"] = round(MT.coverage(p_det, Y_n, c * sigma), 4)
-    task_d["posthoc_nll"] = round(MT.gaussian_nll(p_det, Y_n, c * sigma), 4)
-    # 分 KPI 校准后覆盖
-    cov_kpi = []
-    for i in range(Y_n.shape[1]):
-        cov_kpi.append(round(MT.coverage(p_det[:, i], Y_n[:, i], c * sigma[:, i]), 4))
-    task_d["posthoc_coverage_95_per_kpi"] = cov_kpi
-    log(f"  RSSM MC-z (CF-supervised): σ̄={sigma.mean():.4f} "
-        f"cov95={task_d['rssm_mc_z']['coverage_95']:.3f} → post-hoc c={c:.2f} "
-        f"cov95={task_d['posthoc_coverage_95']:.3f} per-KPI={cov_kpi}")
     results["task_d"] = task_d
     return task_d
 
@@ -310,9 +373,13 @@ def eval_task_d(cf_models, norm, groups, results):
 # ============================================================
 # 图
 # ============================================================
-def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te):
+def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te,
+                 quick: bool = False):
     import matplotlib
     matplotlib.use("Agg")
+    # quick 模式: 输出加 _quick 后缀, 不覆盖正式论文图
+    suffix = "_quick" if quick else ""
+    save = lambda name: DOCS / (name + suffix + ".png")
     import matplotlib.pyplot as plt
     plt.rcParams.update({"font.size": 9, "figure.dpi": 150,
                          "axes.spines.top": False, "axes.spines.right": False})
@@ -322,7 +389,9 @@ def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te):
     ms = [h * D.STEP_MS for h in HORIZONS]
     for name, hr in curves_b.items():
         style = "--" if name in ("Persistence",) else "-"
-        lw = 1.0 if name == "Persistence" else 1.6
+        if name.endswith("-MS"):
+            style = ":"                    # v2 多步一致性变体: 点线
+        lw = 1.0 if name == "Persistence" else (1.2 if name.endswith("-MS") else 1.6)
         ax.plot(ms, [hr[h - 1] for h in HORIZONS], style, lw=lw, label=name)
     ax.set_xlabel("rollout horizon (ms)")
     ax.set_ylabel("normalized RMSE")
@@ -330,7 +399,7 @@ def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te):
     ax.legend(fontsize=7, frameon=False)
     ax.set_xscale("log")
     fig.tight_layout()
-    fig.savefig(DOCS / "fig_rollout.png")
+    fig.savefig(save("fig_rollout"))
     plt.close(fig)
 
     # --- C: Δ-效应散点 (最佳 CF 模型; 上排 RSRP, 下排 DL-rate, 分动作类型着色) ---
@@ -366,7 +435,7 @@ def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te):
     axes[0, 0].legend(fontsize=7, frameon=False, loc="upper left")
     fig.suptitle(f"Task C: counterfactual effect prediction — {best} (normalized)", y=1.0)
     fig.tight_layout()
-    fig.savefig(DOCS / "fig_delta.png", bbox_inches="tight")
+    fig.savefig(save("fig_delta"), bbox_inches="tight")
     plt.close(fig)
 
     # --- A: 单步条形图 ---
@@ -383,7 +452,7 @@ def make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te):
     ax.set_xlabel("normalized RMSE (lower is better)")
     ax.set_title("Task A: one-step prediction")
     fig.tight_layout()
-    fig.savefig(DOCS / "fig_taskA.png")
+    fig.savefig(save("fig_taskA"))
     plt.close(fig)
 
 
@@ -429,7 +498,24 @@ def main():
     }
 
     eval_task_a(all_models, norm, te, results)
-    curves_b, roll_data = eval_task_b(all_models, norm, te, results, device)
+
+    # ---- v2: 多步一致性训练 (Task B 复合误差) ----
+    log("training multi-step-consistency variants (v2) ...")
+    rws = D.rollout_windows(groups, k=8, n_per_branch=4)
+    rw_tr, _ = D.train_test_split(rws)
+    Xh_r = np.stack([s["xh"] for s in rw_tr]).astype(np.float32)
+    Xa_r = np.stack([s["xa"] for s in rw_tr]).astype(np.float32)
+    Yk_r = np.stack([s["y_k"] for s in rw_tr]).astype(np.float32)
+    log(f"  rollout windows: train={len(rw_tr):,} (k≤8)")
+    ms_models = {}
+    for n in ["GRU-WM", "PhysWM"]:        # RSSM 排除: KL 训练与 rollout 目标不兼容
+        model = M.build_model(n, norm=norm)
+        T.train_model_multistep(model, norm, Xh_r, Xa_r, Yk_r,
+                                epochs=args.epochs, ks=(1, 2, 4, 8), seed=SEED)
+        ms_models[n] = model
+
+    curves_b, roll_data = eval_task_b(all_models, norm, te, results, device,
+                                      ms_models=ms_models)
 
     # ---- 反事实监督训练 (headline 实验) ----
     log("training counterfactual-supervised models ...")
@@ -445,14 +531,25 @@ def main():
     task_c, preds_c, true_delta, Yb_n, te_c = eval_task_c(
         all_models, norm, groups, results, cf_models=cf_models, epochs=args.epochs)
     if not args.skip_d:
-        eval_task_d(cf_models, norm, groups, results)
+        # ---- v2: 异方差 NLL 训练 (CF 监督协议, 与 cf_models 同数据) ----
+        log("training heteroscedastic NLL variants (v2) ...")
+        nll_models = {}
+        for n in ["GRU-WM", "RSSM-WM"]:
+            model = M.build_model(n, norm=norm).install_sigma_head()
+            T.train_model_nll(model, norm, Xh_c, Xa_c, Y_c,
+                              epochs=args.epochs, seed=SEED, warmup_epochs=5)
+            nll_models[n] = model
+        eval_task_d(cf_models, norm, groups, results,
+                    nll_models=nll_models, epochs=args.epochs)
 
-    make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te_c)
+    make_figures(results, curves_b, task_c, preds_c, true_delta, Yb_n, te_c,
+                 quick=args.quick)
     log("figures written")
 
-    (DOCS / "results.json").write_text(
+    out_name = "results_quick.json" if args.quick else "results.json"
+    (DOCS / out_name).write_text(
         json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
-    log(f"done → {DOCS}/results.json")
+    log(f"done → {DOCS}/{out_name}")
 
 
 if __name__ == "__main__":
