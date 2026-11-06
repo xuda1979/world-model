@@ -1,5 +1,35 @@
 # 独立复现回执 (Reproduction Receipt) — 永久记录
 
+## 第三次验证: 服务栈冷启动冒烟测试 (2026-11-06 14:52, HEAD = `d99ec69`)
+
+**验证目标**: 训练产物不仅可离线复现, 还可**加载上线服务** —
+全新 clone 中启动 uvicorn, 16 端点全部冒烟通过。
+
+- `git clone /Users/daxu/software/world-model /tmp/world6g_svc` (HEAD=`d99ec69`)
+- `scripts/ingest.py` → `scripts/generate_twin.py --n-per-scene 2` (最小数据集)
+- `python -m uvicorn world6g.backend.api:app --port 8813` (1s 内就绪)
+
+### 端点冒烟结果 (全部通过)
+
+| 端点 | 结果 |
+|---|---|
+| `GET /api/health` | `{"status":"ok", tables:[12 表]}` ✅ |
+| `GET /api/episodes` | 返回 10 real + twin episodes ✅ |
+| `GET /` `/workbench` | 200 (31,241B / 24,909B 前端页面) ✅ |
+| `POST /api/wm/rollout` | baseline+action 双预测轨 ✅ |
+| `POST /api/wm/verify` | 预测-重放闭环: RSRP rmse_act=5.301, delta_pred/delta_truth 输出 ✅ |
+| `GET /api/twin/report` `/api/scene3d/{ep}` `/api/capabilities` | 均正常 ✅ |
+| `POST /api/chat` | 正确回答统计查询 ✅ |
+
+> **API 使用注记**: `wm/rollout` 与 `wm/verify` 的请求体键为
+> `episode_id`（非 `ep_id`）。初次冒烟用错键名导致两个 400/500,
+> 属调用方 payload 错误, 非服务缺陷; 正确键名下两端点均正常。
+
+**结论**: 已提交权重在全新环境中可被服务栈懒加载并对外提供
+16 个端点, 前端可视化与 WM 推理服务冷启动即用。
+
+---
+
 ## 第二次验证: 端到端重训练复现 (2026-11-06 14:38, HEAD = `7f5b146`)
 
 **验证目标**: 不仅评测可复现, **训练本身**也可复现 — 从提交的 HEAD

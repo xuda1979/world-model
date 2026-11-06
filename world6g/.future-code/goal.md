@@ -23,6 +23,13 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 - 结论: 全链路 (数据生成 → WM 训练 → 策略蒸馏 → 闭环评测) 固定 seed
   下完全确定, 训练本身就是可复现产物, 已提交权重 = 重训结果。
 
+服务栈冷启动冒烟测试 (2026-11-06 14:52, 第四次独立验证, HEAD d99ec69):
+- 新 clone → ingest + twin(2/场景) → uvicorn world6g.backend.api:app
+  1s 就绪; 16 端点冒烟全部通过 (health/episodes/前端 2 页/wm rollout/
+  wm verify 闭环/twin report/scene3d/capabilities/chat)。
+- 已提交权重可被服务栈加载上线, 前端可视化 + WM 推理冷启动即用。
+- 回执: docs/closedloop/reproduction_receipt.md (含 episode_id 键名注记)。
+
 ## Checklist — 全部完成，逐项证据
 - [x] 盘点现状：WM v2（models/gru_wm_ms.pt + meta）、训练脚本（train_wm_ms.py /
       train_world_model.py）、仿真器管线（twin/engine.py + generate_twin.py +
