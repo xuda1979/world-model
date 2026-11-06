@@ -38,6 +38,10 @@ world-model/
 uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fastapi "uvicorn[standard]" plotly torch
 
 # 1. 数据入湖 (10 episodes 真实数据 → Parquet + DuckDB)
+#    ⚠️ 前置: 源数据目录为机器绝对路径 (datalake/config.py: SIM_ROOT)
+#    /Users/daxu/software/6G_data_simulation
+#    若源在其他位置, 修改 datalake/config.py 的 SIM_ROOT 指向你的
+#    6G_data_simulation 目录 (需含 6G_episode_data/6G_episodes_10s_fullcatalog)
 .venv/bin/python world6g/scripts/ingest.py
 
 # 2. Tiny-Twin 生成仿真数据 (4 场景 × 2, 自动校准报告)
@@ -54,6 +58,20 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 # 5. 启动可视化 (http://127.0.0.1:8811)
 .venv/bin/python -m uvicorn world6g.backend.api:app --port 8811
 ```
+
+## 可复现性 (已 4 次独立验证, 回执入库)
+
+全链路在固定 seed 下**完全确定**, 详见 `docs/closedloop/reproduction_receipt.md`:
+
+| 验证 | 结论 |
+|---|---|
+| ① 评测复现 | 已提交权重 + 重生成数据 → 96 窗闭环结果与已提交 JSON 逐位一致 (仅时间戳/耗时) |
+| ② 重训练复现 | seed 42 从零重训 → `gru_wm_ms.pt` / `policy_net.pt` **SHA 逐位相同**, 训练即复现 |
+| ③ 服务冷启动 | 新 clone 启动 uvicorn, 16 端点冒烟全通过, 权重可加载上线 |
+| ④ 闭环指标 | CEM-MPC lift +0.2852 [CI +0.113, +0.458], Policy +0.2825, Random 阴性对照 −0.0099 ✓ |
+
+复现命令 (与已提交 results.json meta 对齐): `eval_closedloop.py --n-per-scene 24 --seed 2026`。
+`wm/rollout` / `wm/verify` 请求体键名为 `episode_id` (非 `ep_id`)。
 
 ## Tiny-Twin 校准方法 (拟合真实数据)
 

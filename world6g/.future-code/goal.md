@@ -30,6 +30,13 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 - 已提交权重可被服务栈加载上线, 前端可视化 + WM 推理冷启动即用。
 - 回执: docs/closedloop/reproduction_receipt.md (含 episode_id 键名注记)。
 
+可复现性文档化 (2026-11-06 15:05):
+- README 快速开始补注: ingest 前置条件 = SIM_ROOT 绝对路径
+  (/Users/daxu/software/6G_data_simulation, 见 datalake/config.py),
+  换机器需改 SIM_ROOT — 此前新用户首个命令即会失败且无提示。
+- README 新增"可复现性"章节: 4 次独立验证摘要表 + 复现命令参数
+  (--n-per-scene 24 --seed 2026) + episode_id 键名注记, 链接回执。
+
 ## Checklist — 全部完成，逐项证据
 - [x] 盘点现状：WM v2（models/gru_wm_ms.pt + meta）、训练脚本（train_wm_ms.py /
       train_world_model.py）、仿真器管线（twin/engine.py + generate_twin.py +
