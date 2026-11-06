@@ -1,6 +1,47 @@
 # 独立复现回执 (Reproduction Receipt) — 永久记录
 
-- **日期**: 2026-11-06 14:30
+## 第二次验证: 端到端重训练复现 (2026-11-06 14:38, HEAD = `7f5b146`)
+
+**验证目标**: 不仅评测可复现, **训练本身**也可复现 — 从提交的 HEAD
+重新训练世界模型与策略网络, 权重应与已提交文件**逐位相同**。
+
+- `git clone /Users/daxu/software/world-model /tmp/world6g_e2e` (HEAD=`7f5b146`)
+- 全管线: ingest → generate_twin(8/场景) → generate_actions →
+  **train_wm_ms** (seed 42, 40 epochs) → **train_planner** (seed 42) →
+  eval_closedloop (`--n-per-scene 24 --seed 2026`, 用**重训**权重)
+
+### 权重哈希比对 (SHA-1, 逐位相同)
+
+| 模型 | 已提交 | 重训 | 一致 |
+|---|---|---|---|
+| `gru_wm_ms.pt` | `29374ac42e7b...` | `29374ac42e7b...` | ✅ |
+| `policy_net.pt` | `9b008fb43e65...` | `9b008fb43e65...` | ✅ |
+
+### 重训后 held-out 指标 (与已提交 policy_meta.json 全部 8 项一致, 全精度)
+
+```
+n_windows=128  type_match_rate=0.8645833333333334  value_mae=3.327142758571079
+planner_recommend_rate=0.75  policy_recommend_rate=0.7421875
+wm_reward_planner=-0.30339545124055195  wm_reward_policy=-0.1702277028816752
+reward_gap_policy_minus_planner=0.002881012129364535
+```
+
+### 重训权重闭环评测 vs 已提交结果: 递归逐位比对
+
+```
+total diffs: 2
+  meta.date / meta.runtime_s  (时间戳 / 墙钟耗时, 设计内非确定性)
+其余全部一致: CEM-MPC +0.2852 / Policy +0.2825 / Random −0.0099、
+WM 保真度 pearson +0.798 / spearman +0.782、96 窗明细、twin_runs=209
+```
+
+**结论**: 全链路 (数据生成 → WM 训练 → 策略蒸馏 → 闭环评测) 在固定
+seed 下**完全确定且逐位可复现**, 已提交权重即重训结果本身。
+
+---
+
+## 第一次验证: 已提交权重评测复现 (2026-11-06 14:30, HEAD = `9a33cab`)
+
 - **验证方式**: `git clone /Users/daxu/software/world-model /tmp/world6g_permverify`
   (HEAD = `9a33cab`, 干净工作树, 无未提交文件)
 - **管线** (全部在克隆内重跑, 原始数据源重新出发):
@@ -10,7 +51,7 @@
   4. `scripts/eval_closedloop.py --n-per-scene 24 --seed 2026` — 96 held-out 窗闭环评测
      (使用**已提交**的模型权重 `models/gru_wm_ms.pt` + `models/policy_net.pt`)
 
-## 逐位比对结果
+### 逐位比对结果
 
 对 `docs/closedloop/closedloop_results.json` 的 meta/summary/windows
 全部字段做递归逐位比对:
@@ -33,7 +74,7 @@ total diffs: 2
 | n_windows / twin_runs / same_root_verified | 96 / 209 / true |
 | 全部 96 个决策窗明细 | 逐窗逐字段一致 |
 
-## 结论
+### 结论
 
 从提交的 HEAD 出发, 仅依赖 (a) 外部原始数据源
 `/Users/daxu/software/6G_data_simulation` 与 (b) 已提交的代码+权重,

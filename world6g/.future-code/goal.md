@@ -15,6 +15,14 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   其余全部一致 (含 96 窗明细、twin_runs=209、same_root_verified=true)。
 - 回执文件: docs/closedloop/reproduction_receipt.md (已入库)
 
+端到端重训练复现 (2026-11-06 14:38, 第三次独立验证, HEAD 7f5b146):
+- 新 clone → 全管线 → **train_wm_ms + train_planner 从零重训** (seed 42) →
+  重训权重 SHA-1 与已提交 gru_wm_ms.pt / policy_net.pt **逐位相同**
+  (29374ac42e7b... / 9b008fb43e65...); held-out 8 项指标全精度一致;
+  重训权重跑 eval_closedloop 与已提交结果仍仅时间戳/耗时 2 处差异。
+- 结论: 全链路 (数据生成 → WM 训练 → 策略蒸馏 → 闭环评测) 固定 seed
+  下完全确定, 训练本身就是可复现产物, 已提交权重 = 重训结果。
+
 ## Checklist — 全部完成，逐项证据
 - [x] 盘点现状：WM v2（models/gru_wm_ms.pt + meta）、训练脚本（train_wm_ms.py /
       train_world_model.py）、仿真器管线（twin/engine.py + generate_twin.py +
