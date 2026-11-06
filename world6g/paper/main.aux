@@ -1,0 +1,55 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{ha2018world}
+\citation{le2019world}
+\citation{levine2020offline}
+\citation{levine2020offline}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {II}System Overview}{1}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Data lake}{1}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Calibrated physical layer}{1}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Distributional Fidelity}{1}{section.3}\protected@file@percent }
+\newlabel{sec:fidelity}{{III}{1}{Distributional Fidelity}{section.3}{}}
+\citation{hafner2019dream}
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Calibration sources: structure from 3GPP, parameters fitted from the data lake.}}{2}{table.1}\protected@file@percent }
+\newlabel{tab:calibration}{{I}{2}{Calibration sources: structure from 3GPP, parameters fitted from the data lake}{table.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Same-Root Counterfactual Actions}{2}{section.4}\protected@file@percent }
+\newlabel{sec:actions}{{IV}{2}{Same-Root Counterfactual Actions}{section.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}World-Model Benchmark}{2}{section.5}\protected@file@percent }
+\newlabel{sec:wm}{{V}{2}{World-Model Benchmark}{section.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Models}{2}{subsection.5.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Task A: one-step prediction error (normalized RMSE) under time-extrapolating split. All learned models beat persistence; the gap between architectures is modest at one step.}}{2}{figure.1}\protected@file@percent }
+\newlabel{fig:taska}{{1}{2}{Task A: one-step prediction error (normalized RMSE) under time-extrapolating split. All learned models beat persistence; the gap between architectures is modest at one step}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Task A: one-step prediction}{2}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-C}}Task B: multi-step rollout}{2}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Tiny-Twin fidelity vs.\ real-network simulation, per scene and KPI. KS = two-sample Kolmogorov--Smirnov statistic ($p$-value); $W_1$ = Wasserstein-1 distance in KPI units; $W_1/\mathrm  {IQR}$ = normalized by real-data interquartile range.}}{3}{table.2}\protected@file@percent }
+\newlabel{tab:fidelity}{{II}{3}{Tiny-Twin fidelity vs.\ real-network simulation, per scene and KPI. KS = two-sample Kolmogorov--Smirnov statistic ($p$-value); $W_1$ = Wasserstein-1 distance in KPI units; $W_1/\mathrm {IQR}$ = normalized by real-data interquartile range}{table.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Task A: one-step prediction under time extrapolation (normalized RMSE / MAE; lower is better). All learned models beat persistence with paired-bootstrap 95\% CIs on the RMSE difference excluding zero: RSSM $[-0.0088,-0.0067]$, PhysWM $[-0.0087,-0.0066]$, GRU $[-0.0082,-0.0060]$, TF $[-0.0026,-0.0003]$.}}{3}{table.3}\protected@file@percent }
+\newlabel{tab:wm}{{III}{3}{Task A: one-step prediction under time extrapolation (normalized RMSE / MAE; lower is better). All learned models beat persistence with paired-bootstrap 95\% CIs on the RMSE difference excluding zero: RSSM $[-0.0088,-0.0067]$, PhysWM $[-0.0087,-0.0066]$, GRU $[-0.0082,-0.0060]$, TF $[-0.0026,-0.0003]$}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-D}}Task C: counterfactual $\Delta $-effect}{3}{subsection.5.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Task B: compounding error under autoregressive rollout (log--log). One-step-trained models (solid) win at $h{=}1$ but are overtaken by persistence beyond $\sim $0.4\,s; the multi-step-consistency variant GRU-WM-MS (dotted) cuts $h{=}40$ error by 23\% and beats persistence. RSSM's stochastic prior accumulates variance and diverges ($11.4\times $ growth).}}{3}{figure.2}\protected@file@percent }
+\newlabel{fig:rollout}{{2}{3}{Task B: compounding error under autoregressive rollout (log--log). One-step-trained models (solid) win at $h{=}1$ but are overtaken by persistence beyond $\sim $0.4\,s; the multi-step-consistency variant GRU-WM-MS (dotted) cuts $h{=}40$ error by 23\% and beats persistence. RSSM's stochastic prior accumulates variance and diverges ($11.4\times $ growth)}{figure.2}{}}
+\citation{tinytwin}
+\citation{hafner2019dream}
+\citation{objwm}
+\citation{uavwm}
+\citation{jtd}
+\citation{levine2020offline}
+\bibcite{ha2018world}{1}
+\bibcite{le2019world}{2}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Task C: predicted vs.\ true counterfactual effect $\Delta ^{*}$ (normalized) for the best counterfactually supervised model (GRU-WM), split by KPI (rows: RSRP, DL rate) and action type (columns). Dashed line: perfect prediction; dotted line: null $\Delta {=}0$.}}{4}{figure.3}\protected@file@percent }
+\newlabel{fig:delta}{{3}{4}{Task C: predicted vs.\ true counterfactual effect $\Delta ^{*}$ (normalized) for the best counterfactually supervised model (GRU-WM), split by KPI (rows: RSRP, DL rate) and action type (columns). Dashed line: perfect prediction; dotted line: null $\Delta {=}0$}{figure.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-E}}Task D: uncertainty calibration}{4}{subsection.5.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Related Work}{4}{section.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VII}Limitations and Path Forward}{4}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VIII}Conclusion}{4}{section.8}\protected@file@percent }
+\bibcite{levine2020offline}{3}
+\bibcite{tinytwin}{4}
+\bibcite{hafner2019dream}{5}
+\bibcite{objwm}{6}
+\bibcite{uavwm}{7}
+\bibcite{jtd}{8}
+\@writefile{toc}{\contentsline {section}{References}{5}{section*.1}\protected@file@percent }
+\gdef \@abspage@last{5}
