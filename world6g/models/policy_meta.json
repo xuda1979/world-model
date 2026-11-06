@@ -1,0 +1,70 @@
+{
+ "state_cols": [
+  "服务小区RSRP(dBm)",
+  "服务小区SINR(dB)",
+  "下行速率(Mbps)",
+  "CQI"
+ ],
+ "hist": 8,
+ "mu": [
+  -107.96260833740234,
+  20.5098876953125,
+  155.46888732910156,
+  14.346325874328613
+ ],
+ "sd": [
+  13.660598754882812,
+  11.798505783081055,
+  85.4065933227539,
+  2.237929105758667
+ ],
+ "int_types": [
+  "none",
+  "pmax_scale",
+  "prb_scale",
+  "az_offset",
+  "ho_offset"
+ ],
+ "action_space": {
+  "pmax_scale": {
+   "idx": 1,
+   "lo": 0.5,
+   "hi": 2.0
+  },
+  "prb_scale": {
+   "idx": 2,
+   "lo": 0.25,
+   "hi": 1.0
+  },
+  "az_offset": {
+   "idx": 3,
+   "lo": -30.0,
+   "hi": 30.0
+  },
+  "ho_offset": {
+   "idx": 4,
+   "lo": 1.0,
+   "hi": 6.0
+  }
+ },
+ "hidden": 128,
+ "seed": 42,
+ "epochs": 60,
+ "n_window": 512,
+ "lam_action": 0.02,
+ "params": 29577,
+ "val_type_acc": 0.9078947305679321,
+ "eval": {
+  "n_windows": 128,
+  "type_match_rate": 0.8645833333333334,
+  "value_mae (matched)": 3.327142758571079,
+  "planner_recommend_rate": 0.75,
+  "policy_recommend_rate": 0.7421875,
+  "wm_reward_planner": -0.30339545124055195,
+  "wm_reward_policy": -0.1702277028816752,
+  "reward_gap_policy_minus_planner": 0.002881012129364535
+ },
+ "trained_at": "2026-11-05T21:50:18",
+ "objective": "policy distillation from CEM-MPC (GRU-WM-MS reward), dual-head MLP: type CE + chosen-value MSE",
+ "source_wm": "models/gru_wm_ms.pt (seed42, 多步一致性)"
+}
