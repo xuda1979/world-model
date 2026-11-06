@@ -1,7 +1,7 @@
-# 6G 数据底座与可视化 (Q4 方案一) + Tiny-Twin 生成仿真数据
+# 6G 数据底座与可视化 + Tiny-Twin + GRU 世界模型闭环 (v2)
 
-基于两份 Q4 执行方案 (数据底座与可视化 / 世界模型训练) 搭建:
-**优先数据底座和可视化展示, Tiny-Twin 拟合真实数据生成仿真数据**。
+基于两份 Q4 执行方案 (数据底座与可视化 / 世界模型训练与能力演示) 搭建。
+v2 已完成方案二 §四的核心闭环: **预测 → 执行 → 验证** (GRU-WM 多步 rollout vs Tiny-Twin 同 seed 重放真值)。
 
 ## 架构
 
@@ -13,21 +13,29 @@ world-model/
     ├── datalake/          # 数据底座 (三层: raw → curated → generated)
     │   ├── config.py      # 路径/物理常量/真实锚定统计 (单一事实来源)
     │   ├── raw/registry.json       # 源数据指纹 + 真实 MRO 锚定 (可追溯)
-    │   ├── curated/*.parquet       # 10 episodes 真实数据 (11 表, 249 字段)
-    │   ├── generated/              # Tiny-Twin 生成数据 (与 curated 同 schema)
-    │   └── lake.duckdb             # DuckDB 查询层
-    ├── twin/engine.py     # Tiny-Twin 数字孪生引擎 (参数从数据湖拟合校准)
+    │   ├── curated/                # 10 episodes 真实数据 → Parquet + DuckDB
+    │   └── generated/              # Tiny-Twin 8 episodes + 同根反事实动作分支
+    ├── twin/              # Tiny-Twin 引擎 (可校准参数结构, 同 seed 确定性重放)
     ├── scripts/
-    │   ├── ingest.py      # ETL: 10 episodes 真实数据 → Parquet + DuckDB
-    │   └── generate_twin.py  # 批量生成 + 校准报告 (生成值 vs 真实值域)
-    ├── backend/api.py     # FastAPI (8 端点, 线程安全 DuckDB)
-    └── frontend/index.html  # 可视化工作台 (Plotly 单页)
+    │   ├── ingest.py               # 真实数据入湖
+    │   ├── generate_twin.py        # Twin 批量生成 + 校准报告
+    │   ├── generate_actions.py     # 同根反事实分支数据集 (twin_action_dataset)
+    │   ├── validate_twin.py        # Twin 校准验证
+    │   ├── train_world_model.py    # GRU-WM 训练入口 (v0.2)
+    │   └── train_wm_ms.py          # 多步一致性训练 (v0.3-MS)
+    ├── wm/                # 世界模型训练套件 (方案二)
+    │   ├── data.py models.py train.py   # 数据 / 模型 / 训练循环
+    │   └── metrics.py evaluate.py       # 评测指标与基准
+    ├── models/            # gru_wm.pt (v0.2) / gru_wm_ms.pt (v0.3-MS) + meta
+    ├── twm_serve.py       # 推理服务: 动作条件多步 rollout (线程安全懒加载)
+    ├── backend/api.py     # FastAPI (16 端点, 线程安全 DuckDB)
+    └── frontend/index.html  # 可视化工作台 (Plotly 单页 + 闭环验证表)
 ```
 
 ## 快速开始
 
 ```bash
-uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fastapi "uvicorn[standard]" plotly
+uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fastapi "uvicorn[standard]" plotly torch
 
 # 1. 数据入湖 (10 episodes 真实数据 → Parquet + DuckDB)
 .venv/bin/python world6g/scripts/ingest.py
@@ -35,7 +43,15 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 # 2. Tiny-Twin 生成仿真数据 (4 场景 × 2, 自动校准报告)
 .venv/bin/python world6g/scripts/generate_twin.py --n-per-scene 2
 
-# 3. 启动可视化 (http://127.0.0.1:8811)
+# 3. 同根反事实动作分支数据集 (83,200 rollout 样本)
+.venv/bin/python world6g/scripts/generate_actions.py
+
+# 4. 训练 GRU-WM (v0.2 单步)
+.venv/bin/python world6g/scripts/train_world_model.py
+#    多步一致性 v0.3-MS (当前 serving 默认)
+.venv/bin/python world6g/scripts/train_wm_ms.py
+
+# 5. 启动可视化 (http://127.0.0.1:8811)
 .venv/bin/python -m uvicorn world6g.backend.api:app --port 8811
 ```
 
@@ -47,34 +63,30 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 |------|------|------------------|
 | 路损 | 3GPP 38.901 UMa/UMi NLOS | (RSRP, 3D 距离) 回归: 结构模型残差 sd=7.1dB |
 | 阴影 | AR(1), ρ=exp(−v·dt/d_cor) | 残差自相关 → d_cor≈37.7m, σ=6.0dB (城区) |
-| 扇区增益 | 主瓣 17dBi 二次衰减, FB 30dB | 服务扇区方位差分布 (主瓣命中 53.2%) |
-| SSB-SINR | S/(0.04·I+N)+BF5+噪声 | 完整公式验证: 残差 sd=1.50dB (=高斯噪声项) |
-| CQI | SINR 边界查表 | 湖中 CQI-SINR 边界 (15 级) |
-| MRO 编码 | RSRP=值×0.5−156 等 | 数据字典 25 字段编码规则 |
-| 运动 | 恒速直线+场景速度 | 每场景速度分布 (城区 16.7 / 低空 83.3 m/s) |
-| UE 几何 | 初距 U(160,212)m | 湖中真实初距分布 (均值 180-194m) |
-| 站点工参 | 真实网格6 站点 | site 表: 高度/方位/PCI/ARFCN 按场景匹配 |
+| 扇区增益 | 主瓣 17dBi 二次衰减, FB 30dB | 服务扇区方位分布拟合 |
+| 切换 | A3 事件 (Off=2dB, TTT=160ms) | 真实 MRO 统计锚定 |
+| 业务 | 时变吞吐 (功率余量约束) | 下行速率分布拟合 |
 
-**全局真实锚定** (96 文件 338 万 MRO 样本): RSRP −118.0dBm / SINR 12.07dB / RSRQ −10.10dB。
+引擎**确定性**: 同 seed 重放与 parquet 存档逐位一致 (已验证 max|diff|=0.0000),
+这是"预测-验证"闭环中"执行"产出真值的前提。
 
-### 校准结果 (8/8 通过)
+## 世界模型 (方案二 §四, GRU-WM)
 
-| 场景 | Twin RSRP | 真实值域 |
-|------|-----------|----------|
-| 城区 | −107.9 / −100.5 | [−121.8, −105.9] |
-| 郊区 | −113.0 / −116.4 | [−117.7, −106.8] |
-| 低空 | −128.8 / −131.1 | [−124.0, −122.0] |
-| 机器人工厂 | −100.9 / −113.4 | [−110.7, −107.6] |
+- **架构**: 动作条件 GRU (hist=8, 状态=RSRP/SINR/DL/CQI, 5 动作族: baseline/pmax/prb/az/ho)
+- **训练数据**: 同根反事实分支 (twin_action_dataset, 83,200 rollout 样本) — 同一 seed 下 baseline 与动作分支只差动作本身, 因果效应精确可分离
+- **v0.3-MS**: 多步一致性训练 (rollout windows), 长程自回归更稳
+- **四任务基准** (`wm/bench.py`): 单步预测 / 多步 rollout / 动作效应 / 场景迁移 (详见 `wm/` 与训练报告)
 
-## 可视化功能 (http://127.0.0.1:8811)
+## 预测→执行→验证闭环 (v2 核心)
 
-- **Episode 侧栏**: 18 个 (10 真实 + 8 Twin), 按来源着色
-- **KPI 卡片**: RSRP / SINR / 下行速率 / 场景
-- **KPI 时序**: 7 指标切换 (RSRP/SINR/DL/UL/时延/CQI/丢包率), 均值±P10/P90 带 + 每 UE 曲线
-- **网络地图**: UE 轨迹 (颜色=RSRP Turbo 色阶) + 站点三扇区覆盖
-- **小区吞吐**: 每小区 Mbps 时序
-- **全 Episode 对比**: RSRP×SINR 散点 (真实圆点 vs Twin 菱形)
-- **Twin 校准**: 生成值 vs 真实值域 (误差条)
+```
+预测:  GRU-WM 对 baseline / 动作分支各 rollout K 步 (自回归)
+执行:  Tiny-Twin 引擎同 seed 重放两条真值轨 (逐位一致 = 真值)
+验证:  逐 KPI RMSE (vs Persistence 末值保持参考) + Δ效应误差 (预测Δ vs 真值Δ)
+```
+
+前端「世界模型」面板双模式切换: **反事实对照** (纯预测) / **预测→执行→验证** (闭环 + 验证表)。
+冒烟: 8 twin episodes × 7 动作 = 56 组合全通过 (预测 ~15ms, 执行 ~260ms/次)。
 
 ## API 端点
 
@@ -86,9 +98,26 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 | `GET /api/compare` | 全 episode 对比 |
 | `GET /api/fields` | 数据字典 249 字段 |
 | `GET /api/twin/report` | Twin 校准报告 |
+| `GET /api/scene3d/{id}` | 3D 场景 (五层渲染) |
+| `GET /api/layers` | 五层定义 |
+| `GET /api/capabilities` | 五项能力卡 |
+| `GET /api/campus` | 园区地图 (信息港·昌平) |
+| `POST /api/wm/rollout` | WM 多步 rollout (baseline vs 动作) |
+| `POST /api/wm/verify` | **预测-验证闭环** (rollout + 同 seed 重放 + RMSE/Δ 验证) |
+| `POST /api/chat` | 工作台对话问答 (规则式, 数据湖驱动) |
 
-## 下一步 (对接方案二 世界模型)
+## 可视化工作台
 
-1. 双周节点: 11/6 能力交互首版, 11/13 稳定演示
-2. Radio map 重构 / 新站预测 / KPI 预测等 5 项能力接入本平台
-3. Twin 扩展: 多小区干扰场景、动作族 (功率/PRB/波束) 执行与前后状态对比
+- **KPI 时序**: 7 指标 (RSRP/SINR/DL/UL/时延/CQI/丢包率), 均值±P10/P90 带 + 每 UE 曲线
+- **网络地图**: UE 轨迹 (颜色=RSRP Turbo 色阶) + 站点三扇区覆盖
+- **小区吞吐**: 每小区 Mbps 时序
+- **全 Episode 对比**: RSRP×SINR 散点 (真实圆点 vs Twin 菱形)
+- **Twin 校准**: 生成值 vs 真实值域 (误差条)
+- **世界模型闭环**: 双模式 (反事实对照 / 预测→执行→验证), 4 KPI × (预测/真值) × (base/动作) 曲线 + 逐 KPI 验证表 (RMSE vs Persistence, Δ效应误差)
+- **五项能力卡**: Radio map / 新站预测 / KPI 预测 / 动作效应 / 干扰分析 (含模型可用性标识)
+
+## 下一步
+
+1. 11/13 节点: 闭环演示稳定化 (PPT 嵌入实测数据)
+2. WM 迭代: 场景迁移任务 (Task D) 提升 → 接入更多真实 episode 微调
+3. 动作族扩展: 波束级动作 / 多小区协同动作

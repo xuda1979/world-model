@@ -79,6 +79,17 @@
   .wm-controls button:hover { filter: brightness(1.15); }
   .wm-src { font-size: 11px; }
   .wm-note, .campus-note { font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.6; }
+  /* 闭环验证表格 */
+  #wmVerifyTable { margin-top: 10px; }
+  .vtable { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .vtable th, .vtable td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); }
+  .vtable th { color: var(--dim); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
+  .vtable th:first-child, .vtable td:first-child { text-align: left; }
+  .vtable td.kname { color: var(--txt); font-weight: 600; }
+  .vtable .good { color: #34d399; font-weight: 600; }
+  .vtable .bad { color: #fb7185; font-weight: 600; }
+  .vtable tr:last-child td { border-bottom: none; }
+  .vmeta { font-size: 10px; color: var(--dim); margin-top: 6px; line-height: 1.5; }
   #campusPlot { min-height: 460px; }
   footer { padding: 10px 22px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
   .badge { display:inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px;
@@ -147,9 +158,13 @@
     </div>
 
     <div class="panel">
-      <h2>世界模型 · 动作对照 Rollout
-        <small>GRU-WM v0.2 · 动作条件多步预测 (baseline vs 动作后), 反事实同根分支训练</small></h2>
+      <h2>世界模型 · 预测→执行→验证闭环
+        <small>GRU-WM v0.2 · 反事实对照 Rollout / 同根真值闭环验证 (方案二 §四)</small></h2>
       <div class="wm-controls">
+        <div class="metric-tabs" id="wmMode" style="margin-bottom:0">
+          <button data-mode="rollout" class="active">反事实对照</button>
+          <button data-mode="verify">预测→执行→验证</button>
+        </div>
         <label>Episode <select id="wmEp"></select></label>
         <label>UE <select id="wmUe"></select></label>
         <label>动作 <select id="wmAct">
@@ -168,6 +183,7 @@
         <span class="wm-src" id="wmSrc"></span>
       </div>
       <div id="wmPlot" class="plot" style="min-height:300px"></div>
+      <div id="wmVerifyTable"></div>
       <div class="wm-note" id="wmNote"></div>
     </div>
 
@@ -401,26 +417,43 @@ const WM_KPI = [  // state_cols 顺序: RSRP / SINR / DL / CQI
   {name: 'CQI', unit: '', col: 3, color: '#fbbf24'},
 ];
 
+let WM_MODE = 'rollout';
+
 async function runWmRollout() {
   const epId = document.getElementById('wmEp').value;
   const ue = document.getElementById('wmUe').value;
   const action = JSON.parse(document.getElementById('wmAct').value);
   const steps = +document.getElementById('wmSteps').value;
   const src = document.getElementById('wmSrc');
-  src.textContent = '推理中…';
+  const vtable = document.getElementById('wmVerifyTable');
+  vtable.innerHTML = '';
+  const url = WM_MODE === 'verify' ? '/api/wm/verify' : '/api/wm/rollout';
+  src.textContent = WM_MODE === 'verify' ? '闭环中: 预测 → 同 seed 重放执行 → 逐 KPI 验证…' : '推理中…';
   try {
-    const r = await post(API + '/api/wm/rollout', {episode_id: epId, ue: +ue, action, steps});
+    const r = await post(API + url, {episode_id: epId, ue: +ue, action, steps});
     const t = Array.from({length: r.steps}, (_, i) => ((r.t0 + (i + 1) * r.dt_ms) / 1000).toFixed(2));
     const traces = [];
     const shapes = [];
     WM_KPI.forEach((k, i) => {
-      const yb = r.baseline.map(row => row[k.col]), ya = r.acted.map(row => row[k.col]);
-      traces.push({x: t, y: yb, mode: 'lines', name: `${k.name} baseline`, legendgroup: k.name,
+      const kp = r.kpis && r.kpis[i];
+      const yb = kp ? kp.pred_base : r.baseline.map(row => row[k.col]);
+      const ya = kp ? kp.pred_act : r.acted.map(row => row[k.col]);
+      const ytb = kp ? kp.truth_base : null;
+      const yta = kp ? kp.truth_act : null;
+      traces.push({x: t, y: yb, mode: 'lines', name: `${k.name} 预测·base`, legendgroup: k.name,
         line: {color: k.color, width: 1.6, dash: 'dot'}, xaxis: 'x', yaxis: 'y' + (i + 1)});
-      traces.push({x: t, y: ya, mode: 'lines', name: `${k.name} 动作后`, legendgroup: k.name,
+      traces.push({x: t, y: ya, mode: 'lines', name: `${k.name} 预测·动作`, legendgroup: k.name,
         showlegend: i === 0, line: {color: k.color, width: 2.2}});
       traces[traces.length - 1].yaxis = 'y' + (i + 1);
-      const y1 = Math.min(...yb, ...ya), y2 = Math.max(...yb, ...ya), pad = Math.max((y2 - y1) * 0.15, 1e-6);
+      if (ytb) traces.push({x: t, y: ytb, mode: 'lines', name: `${k.name} 真值·base`, legendgroup: k.name + 't',
+        showlegend: i === 0, line: {color: '#94a3b8', width: 1.1, dash: 'dash'}, xaxis: 'x', yaxis: 'y' + (i + 1)});
+      if (yta) {
+        traces.push({x: t, y: yta, mode: 'lines', name: `${k.name} 真值·动作`, legendgroup: k.name + 't',
+          showlegend: i === 0, line: {color: '#e2e8f0', width: 1.5}, xaxis: 'x'});
+        traces[traces.length - 1].yaxis = 'y' + (i + 1);
+      }
+      const all = ytb ? [...yb, ...ya, ...ytb, ...yta] : [...yb, ...ya];
+      const y1 = Math.min(...all), y2 = Math.max(...all), pad = Math.max((y2 - y1) * 0.15, 1e-6);
       shapes.push({yaxis: 'y' + (i + 1), type: 'line', x0: t[0], x1: t[t.length - 1],
         y0: (y1 + y2) / 2, y1: (y1 + y2) / 2, line: {width: 0},  // 占位: subplot 边界由 plotly 处理
         layer: 'below'});
@@ -434,17 +467,53 @@ async function runWmRollout() {
     });
     layout.xaxis = {gridcolor: 'rgba(148,163,184,.12)', title: {text: '时间 (s)', font: {size: 10}}};
     Plotly.react('wmPlot', traces, layout, {displayModeBar: false});
-    // 效应摘要: 动作后 − baseline 均值差
-    const sums = WM_KPI.map(k => {
-      const d = r.acted.map((row, i) => row[k.col] - r.baseline[i][k.col]);
-      const m = d.reduce((a, b) => a + b, 0) / d.length;
-      return `${k.name} ${m >= 0 ? '+' : ''}${m.toFixed(2)}${k.unit}`;
-    }).join(' · ');
     src.textContent = `模型: ${r.model.version}`;
-    document.getElementById('wmNote').innerHTML =
-      `动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> 在 episode <b>${r.episode_id}</b> ` +
-      `UE ${r.ue} 上 ${steps} 步 (×50ms) 的反事实预测: 均值效应 ${sums}。` +
-      `训练数据: 同根反事实分支 (twin_action_dataset, 83,200 样本); 未通过检查的任务保留原引擎 (方案二 §四)。`;
+
+    if (WM_MODE === 'verify') {
+      // ---- 闭环验证表: 逐 KPI RMSE (WM vs Persistence) + Δ效应误差 ----
+      const cell = (v, ok) => `<span class="${ok === null || ok === undefined ? '' : ok ? 'good' : 'bad'}">${v}</span>`;
+      const rows = r.kpis.map(kp => {
+        const beat = kp.rmse_base <= kp.rmse_persist;
+        return `<tr>
+          <td class="kname">${kp.name}</td>
+          <td>${cell(kp.rmse_base.toFixed(3), beat)}</td>
+          <td>${cell(kp.rmse_act.toFixed(3), kp.rmse_act <= kp.rmse_persist)}</td>
+          <td>${kp.rmse_persist.toFixed(3)}</td>
+          <td>${kp.delta_pred >= 0 ? '+' : ''}${kp.delta_pred.toFixed(2)}</td>
+          <td>${kp.delta_truth >= 0 ? '+' : ''}${kp.delta_truth.toFixed(2)}</td>
+          <td>${cell(kp.delta_err.toFixed(2), kp.delta_err <= Math.max(0.5 * Math.abs(kp.delta_truth), 0.05) ? true : null)}</td>
+        </tr>`;
+      }).join('');
+      vtable.innerHTML = `
+        <table class="vtable">
+          <thead><tr>
+            <th>KPI</th><th title="预测 vs 同根真值·base 分支">RMSE base</th>
+            <th title="预测 vs 同根真值·动作分支">RMSE 动作</th>
+            <th title="Persistence 末值保持参考 (base 分支)">RMSE 持续</th>
+            <th>Δ效应 预测</th><th>Δ效应 真值</th><th>Δ误差</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="vmeta">
+          ${r.protocol}<br>
+          耗时: 预测 ${r.timing_ms.predict}ms · 执行 (Twin 同 seed 重放 ×2) ${r.timing_ms.execute}ms ·
+          绿色 = 优于参考 (RMSE ≤ Persistence / Δ误差 ≤ 0.5·|Δ真值|); 同 seed 重放使动作因果效应精确可分离 — 真实网络无法重放, 这是孪生闭环的独特优势。
+        </div>`;
+      document.getElementById('wmNote').innerHTML =
+        `闭环验证: 动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> @ <b>${r.episode_id}</b> UE ${r.ue}, ` +
+        `${steps} 步 — 预测 (GRU-WM) / 执行 (Twin 重放) / 验证 (RMSE + Δ误差, 含 Persistence 基准) 三段闭环见上表。`;
+    } else {
+      // 效应摘要: 动作后 − baseline 均值差
+      const sums = WM_KPI.map(k => {
+        const d = r.acted.map((row, i) => row[k.col] - r.baseline[i][k.col]);
+        const m = d.reduce((a, b) => a + b, 0) / d.length;
+        return `${k.name} ${m >= 0 ? '+' : ''}${m.toFixed(2)}${k.unit}`;
+      }).join(' · ');
+      document.getElementById('wmNote').innerHTML =
+        `动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> 在 episode <b>${r.episode_id}</b> ` +
+        `UE ${r.ue} 上 ${steps} 步 (×50ms) 的反事实预测: 均值效应 ${sums}。` +
+        `训练数据: 同根反事实分支 (twin_action_dataset, 83,200 样本); 未通过检查的任务保留原引擎 (方案二 §四)。`;
+    }
   } catch (e) {
     src.textContent = '失败: ' + e.message;
   }
@@ -503,6 +572,21 @@ loadCapabilities();
 loadCampus();
 document.getElementById('wmEp').addEventListener('change', fillWmUes);
 document.getElementById('wmRun').addEventListener('click', runWmRollout);
+document.getElementById('wmMode').addEventListener('click', e => {
+  const b = e.target.closest('button[data-mode]');
+  if (!b) return;
+  WM_MODE = b.dataset.mode;
+  document.querySelectorAll('#wmMode button').forEach(x => x.classList.toggle('active', x === b));
+  document.getElementById('wmRun').textContent =
+    WM_MODE === 'verify' ? '运行闭环' : 'Rollout 对照';
+  document.getElementById('wmVerifyTable').innerHTML = '';
+  if (WM_MODE === 'verify' && !document.getElementById('wmEp').value.startsWith('twin_')) {
+    document.getElementById('wmEp').value = 'twin_01';   // 闭环验证需同 seed 可重放的 twin episode
+    fillWmUes().then(runWmRollout);
+  } else {
+    runWmRollout();
+  }
+});
 </script>
 </body>
 </html>

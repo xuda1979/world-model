@@ -44,21 +44,33 @@ class GRUWM(nn.Module):
 _MODEL = None
 _META = None
 
+# 服务模型优先级: v2 多步一致性 (MS) > v0.2 单步 (gru_wm.pt)
+# MS 模型 rollout 复合误差显著更低 (h40 RMSE_norm 0.849 vs 1.103, Task B v2)
+_CANDIDATES = [
+    ("gru_wm_ms.pt", "gru_wm_ms_meta.json",
+     "GRU-WM v0.3-MS (seed42, 多步一致性训练, twin_action_dataset rollout windows)"),
+    ("gru_wm.pt", "gru_wm_meta.json", None),
+]
+
 
 def load_model():
-    """懒加载 GRU-WM 权重; 失败返回 None (保留基线引擎, 方案二要求)"""
+    """懒加载 GRU-WM 权重 (优先 MS); 失败返回 None (保留基线引擎, 方案二要求)"""
     global _MODEL, _META
     if _MODEL is not None:
         return _MODEL
-    try:
-        meta = json.loads((MODELS_DIR / "gru_wm_meta.json").read_text(encoding="utf-8"))
-        model = GRUWM()
-        model.load_state_dict(torch.load(MODELS_DIR / "gru_wm.pt", map_location="cpu"))
-        model.eval()
-        _MODEL, _META = model, meta
-        return model
-    except Exception:
-        return None
+    for ckpt, meta_f, version in _CANDIDATES:
+        try:
+            meta = json.loads((MODELS_DIR / meta_f).read_text(encoding="utf-8"))
+            model = GRUWM()
+            model.load_state_dict(torch.load(MODELS_DIR / ckpt, map_location="cpu"))
+            model.eval()
+            if version:
+                meta = {**meta, "version": version, "objective": meta.get("objective", "")}
+            _MODEL, _META = model, meta
+            return model
+        except Exception:
+            continue
+    return None
 
 
 def _action_vec(action: dict) -> np.ndarray:
@@ -141,7 +153,9 @@ def evaluate_on_action_dataset(action_type: str | None = None):
         pred = model(torch.tensor(Xh_n, dtype=torch.float32),
                      torch.tensor(a_n, dtype=torch.float32)).numpy() * sd + mu
     pers = Xh[:, -1].copy()
-    out = {"n": int(len(Y)), "model_version": MODEL_VERSION, "per_kpi": {}}
+    out = {"n": int(len(Y)),
+           "model_version": _META.get("version", MODEL_VERSION) if _META else MODEL_VERSION,
+           "per_kpi": {}}
     for j, c in enumerate(cols):
         out["per_kpi"][c] = {
             "wm_mae": round(float(np.abs(pred[:, j] - Y[:, j]).mean()), 2),
@@ -155,9 +169,10 @@ def evaluate_on_action_dataset(action_type: str | None = None):
 def model_info() -> dict:
     if _META is None and load_model() is None:
         return {"available": False, "reason": "gru_wm.pt 未找到或加载失败 — 保留基线引擎"}
-    return {"available": True, "version": MODEL_VERSION,
+    return {"available": True, "version": _META.get("version", MODEL_VERSION),
             "params": _META["params"], "trained_at": _META["trained_at"],
             "data": _META["data"], "hist": _META["hist"],
+            "objective": _META.get("objective", ""),
             "state_cols": _META["state_cols"]}
 
 

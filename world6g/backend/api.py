@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import numpy as np
 import pandas as pd
 import duckdb
 from fastapi import FastAPI, HTTPException, Query
@@ -373,6 +374,120 @@ async def wm_rollout(req: dict):
         raise
     except Exception as e:
         raise HTTPException(500, f"rollout failed: {e}")
+
+
+# ================= 预测-验证闭环 (11/6 能力交互核心) =================
+# 协议: 预测 (GRU-WM rollout) → 执行 (Twin 引擎同 seed 重放, 施加动作) → 验证 (逐 KPI 误差)
+# 同根保证: twin_NN episode 由 generate_twin.py 以 seed=1000+ep_i*101 生成,
+#           引擎确定性重放与 parquet 存档逐位一致 (已验证), 因此"执行"产出的是真值而非新随机轨迹。
+
+_VERIFY_LOCK = __import__("threading").Lock()
+_TWIN_EP = {  # twin episode → (场景, n_ue); 与 scripts/generate_twin.py 的 seed 方案一致
+    "twin_01": ("城区", 8), "twin_02": ("城区", 8), "twin_03": ("郊区", 8), "twin_04": ("郊区", 8),
+    "twin_05": ("低空", 8), "twin_06": ("低空", 8), "twin_07": ("机器人工厂", 8), "twin_08": ("机器人工厂", 8),
+}
+_KPI_META = [  # state_cols 顺序: RSRP / SINR / DL / CQI
+    {"name": "RSRP", "unit": "dBm"}, {"name": "SINR", "unit": "dB"},
+    {"name": "下行速率", "unit": "Mbps"}, {"name": "CQI", "unit": ""},
+]
+
+
+def _replay_twin_branch(ep_id: str, action: dict | None):
+    """Twin 引擎同 seed 重放一条分支 (action=None 为基准).
+    返回 (ue 表 DataFrame, 仿真器对象). 与 generate_twin.py 完全同构."""
+    engine = importlib.import_module("twin.engine")
+    scene, n_ue = _TWIN_EP[ep_id]
+    ep_i = int(ep_id.split("_")[1])
+    tw = engine.TinyTwin(scene, n_cell=3, n_ue=n_ue, seed=1000 + ep_i * 101)
+    if action:
+        t, v = str(action.get("type", "baseline")), float(action.get("value", 0.0))
+        if t == "pmax_scale":
+            tw.tx_scale_db = 10.0 * np.log10(max(v, 1e-3))
+        elif t == "prb_scale":
+            tw.prb_scale = min(max(v, 0.05), 1.0)
+        elif t == "az_offset":
+            for c in tw.site:
+                c["az"] = (c["az"] + v) % 360
+        elif t == "ho_offset":
+            tw.ho_offset_db = v
+        # baseline / 未知类型: 不干预
+    return tw.run()["ue"], tw
+
+
+@app.post("/api/wm/verify")
+async def wm_verify(req: dict):
+    """预测-验证闭环: {episode_id (twin_NN), ue, action: {type, value}, steps<=160}
+    1. 预测: GRU-WM 对 baseline / action 各 rollout steps 步
+    2. 执行: Twin 引擎同 seed 重放两条真值轨 (同根, 动作因果效应精确可分离)
+    3. 验证: 逐 KPI 的 rollout RMSE + Δ效应误差 (预测Δ vs 真值Δ)
+    """
+    import time as _time
+    ep_id = str(req.get("episode_id", ""))
+    action = req.get("action") or {"type": "baseline", "value": 0}
+    steps = int(min(max(int(req.get("steps", 80)), 1), 160))
+    if ep_id not in _TWIN_EP:
+        raise HTTPException(400, f"verify 仅支持 twin episodes: {sorted(_TWIN_EP)} (引擎可确定性重放)")
+    try:
+        wm = importlib.import_module("twm_serve")
+        if wm.load_model() is None:
+            raise HTTPException(503, "GRU-WM model not available")
+        cols = wm._META["state_cols"]; H = wm._META["hist"]
+        df = _ep_ue_df(ep_id)
+        ue = int(req.get("ue", df.UEID.iloc[0]))
+        g = df[df.UEID == ue].sort_values("时间戳(ms)")
+        if len(g) < H + steps:
+            raise HTTPException(400, f"episode 长度不足: 需 {H + steps} 步, 实际 {len(g)}")
+        hist = g[cols].values[:H].astype(float)
+
+        t_pred0 = _time.time()
+        pred_base = wm.predict_rollout(hist, {"type": "baseline"}, steps=steps)
+        pred_act = wm.predict_rollout(hist, action, steps=steps)
+        t_pred = (_time.time() - t_pred0) * 1000
+
+        t_exec0 = _time.time()
+        with _VERIFY_LOCK:                     # 引擎重放 CPU 密集, 防并发重入
+            truth_base_df, _ = _replay_twin_branch(ep_id, None)
+            truth_act_df, _ = _replay_twin_branch(ep_id, action)
+        t_exec = (_time.time() - t_exec0) * 1000
+
+        gb = truth_base_df[truth_base_df.UEID == ue].sort_values("时间戳(ms)")
+        ga = truth_act_df[truth_act_df.UEID == ue].sort_values("时间戳(ms)")
+        truth_base = gb[cols].values[H:H + steps].astype(float)
+        truth_act = ga[cols].values[H:H + steps].astype(float)
+
+        kpis = []
+        for i, km in enumerate(_KPI_META):
+            pb, pa = pred_base[:, i], pred_act[:, i]
+            tb, ta = truth_base[:, i], truth_act[:, i]
+            pp = np.full(steps, float(hist[-1, i]))   # Persistence 参考: 末值保持 (无动作感知, Δ=0)
+            kpis.append({
+                "name": km["name"], "unit": km["unit"],
+                "rmse_base": round(float(np.sqrt(((pb - tb) ** 2).mean())), 3),
+                "rmse_act": round(float(np.sqrt(((pa - ta) ** 2).mean())), 3),
+                "rmse_persist": round(float(np.sqrt(((pp - tb) ** 2).mean())), 3),
+                "delta_pred": round(float((pa - pb).mean()), 3),      # 预测的动作平均效应
+                "delta_truth": round(float((ta - tb).mean()), 3),     # 真值动作平均效应
+                "delta_err": round(float(abs((pa - pb).mean() - (ta - tb).mean())), 3),
+                "pred_base": np.round(pb, 3).tolist(),
+                "pred_act": np.round(pa, 3).tolist(),
+                "truth_base": np.round(tb, 3).tolist(),
+                "truth_act": np.round(ta, 3).tolist(),
+            })
+
+        t0 = float(g["时间戳(ms)"].iloc[H - 1])
+        return {
+            "episode_id": ep_id, "ue": ue, "action": action, "steps": steps,
+            "scene": _TWIN_EP[ep_id][0], "dt_ms": 50.0, "t0": t0,
+            "kpis": kpis,
+            "timing_ms": {"predict": round(t_pred, 1), "execute": round(t_exec, 1)},
+            "model": wm.model_info(),
+            "protocol": ("预测 (GRU-WM 多步自回归 rollout) → 执行 (Tiny-Twin 引擎同 seed 重放, "
+                         "同根分支真值) → 验证 (逐 KPI RMSE + Δ效应误差)"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"verify failed: {e}")
 
 
 # ================= 园区地图 (中国移动信息港·昌平) =================
