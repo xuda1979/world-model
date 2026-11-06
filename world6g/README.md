@@ -137,5 +137,6 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 ## 下一步
 
 1. 11/13 节点: 闭环演示稳定化 (PPT 嵌入实测数据)
-2. WM 迭代: 场景迁移任务 (Task D) 提升 → 接入更多真实 episode 微调
+2. WM 迭代: 场景迁移任务 (Task D) 提升 → 接入更多真实 episode 微调;
+   **融合奖励已验证**: `fuse_wm_planner.py` λ≈0.5 兼得闭环保真度与进攻性 (lift 0.469 vs 0.269/0.404)
 3. 动作族扩展: 波束级动作 / 多小区协同动作
