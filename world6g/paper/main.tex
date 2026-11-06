@@ -190,6 +190,16 @@ Results: GRU-WM-NLL reaches \textbf{95.2\%} coverage at the nominal 95\% level w
 Post-hoc scaling is now nearly a no-op ($c\!=\!0.97$--$0.99$): the NLL objective itself produces calibrated, input-dependent uncertainty.
 The lesson for practitioners: \emph{latent-space sampling is not a calibrated epistemic uncertainty estimate on this substrate; a heteroscedastic NLL head is the effective repair, and post-hoc scaling becomes a refinement rather than a rescue}.
 
+\section{Closed-Loop Planning}
+The benchmark's final test is not prediction but \emph{control}: does the world model support an agent that measurably improves the network?
+We train a GRU world model with multi-step consistency (v2) on same-root counterfactual branches, then evaluate two policies against a no-action baseline on 96 held-out decision windows (horizon $8\times50$\,ms, actions actually applied to the simulator's same-root branch):
+\textbf{CEM-MPC}, a cross-entropy-method planner (population 16, 3 iterations) rolling out candidate actions in the learned model; and a distilled \textbf{Policy} network (29.6k parameters), trained offline from CEM trajectories.
+Both planners lift realized reward substantially over the no-action baseline:
+CEM-MPC $+0.285$ [95\% CI $+0.113,+0.458$], $P(\text{lift}>0)=0.9995$; Policy $+0.283$ [$+0.106,+0.459$], $P=0.9988$---a 1\% gap showing distillation loses almost nothing.
+A random-action negative control yields $-0.010$ [$-0.104,+0.089$], confirming the lift is causal, not artifact.
+Model-decision fidelity is strong (predicted-vs-realized reward Pearson $+0.80$, Spearman $+0.78$, $n{=}384$), and the learned policy prefers beam-azimuth correction (74\%) or no intervention when geometry is already favorable (21\%).
+All results are seed-locked and reproduce bit-for-bit from the repository (independent clean-clone rerun; weights retrained from scratch match committed SHA-1 hashes exactly).
+
 \section{Related Work}
 \textbf{Digital twins for RAN.} Tiny-Twin~\cite{tinytwin} provides a CPU-native full-stack twin; we inherit its physical-layer philosophy but re-anchor every parameter to a measured data lake and add distributional validation.
 \textbf{World models.} RSSM~\cite{hafner2019dream}, object-centric variants~\cite{objwm}, and their network applications~\cite{uavwm} assume interactive data; we supply the missing ingredient---calibrated counterfactual branches at scale---and provide the first multi-architecture benchmark on such data (including the finding that RSSM-style latent stochasticity, beneficial in pixel domains, compounds into divergence here).

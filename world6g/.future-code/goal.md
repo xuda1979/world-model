@@ -64,7 +64,9 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 ## Notes
 - 仓库：/Users/daxu/software/world-model，工作目录 world6g/
 - 提交链：c21102e（闭环评测）→ bd8a712（基准复跑）→ 34d440d（规划器/训练器/
-  模型权重入库）→ 782b845（服务栈 WM v2 + /wm/verify）→ 9a33cab（报告）
+  模型权重入库）→ 782b845（服务栈 WM v2 + /wm/verify）→ 9a33cab（报告）→
+  7f5b146（复现回执①）→ d99ec69（重训练 SHA 复现②）→ 62b869d（服务冒烟③）→
+  4a193ef（README 可复现性）→ 本提交（论文闭环章节④）
 - 关键架构：数据由 Tiny-Twin 仿真器产生（ingest 真实数据校准 → generate_twin
   仿真 → generate_actions 同根反事实分支）→ WM v2 训练 → CEM-MPC 规划 +
   策略蒸馏 → 闭环评测（同根校验 + bootstrap CI + 阴性对照）
