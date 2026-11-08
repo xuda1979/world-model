@@ -57,6 +57,11 @@ class TinyTwin:
         self.tx_scale_db = 0.0
         self.prb_scale = 1.0
         self.ho_offset_db = HO_OFFSET_DB
+        # 多小区协同钩子 (None = 走原全局路径, 逐位不变):
+        #   cell_tx_scale_db[i] — 第 i 小区功率偏移 (dB), 单小区独立生效
+        #   cell_az_offset[i]   — 第 i 小区方位角偏移 (deg)
+        self.cell_tx_scale_db = None
+        self.cell_az_offset = None
 
         # 校准锚点
         self.anchor = REAL.get(scene, CAMPUS_REAL)   # {kpi: (mean, sd)}
@@ -98,7 +103,7 @@ class TinyTwin:
         for i in range(self.n_cell):
             c = cells.iloc[i % len(cells)]
             self.site.append({
-                "cell_name": c.cell_name, "pci": int(c.pci), "cellid": int(c.cellid),
+                "idx": i, "cell_name": c.cell_name, "pci": int(c.pci), "cellid": int(c.cellid),
                 "lon": float(c.longitude), "lat": float(c.latitude),
                 "h": float(c.height), "az": float(c.azimuth) % 360,
                 "pwr": TX_POWER_DBM, "band": c.band, "arfcn": int(c.arfcn),
@@ -111,7 +116,7 @@ class TinyTwin:
         for i, a in enumerate(anchors):
             x, y = lonlat_to_xy(a["lon"], a["lat"])
             self.site.append({
-                "cell_name": f"campus-{i+1}", "pci": 400 + i, "cellid": i + 1,
+                "idx": i, "cell_name": f"campus-{i+1}", "pci": 400 + i, "cellid": i + 1,
                 "lon": a["lon"], "lat": a["lat"], "h": 25.0,
                 "az": [0.0, 120.0, 240.0][i] + 20,
                 "pwr": TX_POWER_DBM, "band": "N41", "arfcn": 504990,
@@ -162,7 +167,10 @@ class TinyTwin:
         """扇区天线相对衰减 (az 动作生效): 主瓣 0dB, 3dB 半宽 32.5°, 背瓣 −30dB。
         常数抬升已由 anchor 吸收; 只保留方向相对作用。"""
         az = math.degrees(math.atan2(uy - cell["y"], ux - cell["x"])) % 360
-        d_az = abs(((az - cell["az"] + 180) % 360) - 180)
+        cell_az = cell["az"]
+        if self.cell_az_offset is not None:
+            cell_az = (cell_az + self.cell_az_offset[cell["idx"]]) % 360
+        d_az = abs(((az - cell_az + 180) % 360) - 180)
         return -min(20.0, 10.0 * (d_az / 60.0) ** 2)
 
     def rx_power_re_dbm(self, ux, uy, uz, cell, shadow=0.0):
@@ -176,7 +184,10 @@ class TinyTwin:
         slope = {"城区": 32.0, "郊区": 30.0, "低空": 40.0,
                  "机器人工厂": 30.0, "campus": 32.0}[self.scene]
         m_mean = self.anchor["rsrp"][0]
-        struct = (m_mean + self.tx_scale_db + self.ant_gain_db(ux, uy, cell)
+        tx_db = self.tx_scale_db
+        if self.cell_tx_scale_db is not None:
+            tx_db += self.cell_tx_scale_db[cell["idx"]]
+        struct = (m_mean + tx_db + self.ant_gain_db(ux, uy, cell)
                   + slope * math.log10(max(d, 60.0) / ref))
         # 密集园区: 建筑街谷遮挡 (真实园区 RSRP 落在城区弱区间 −108..−120)
         if self.scene == "campus":

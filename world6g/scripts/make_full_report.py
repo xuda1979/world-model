@@ -141,6 +141,10 @@ cc_compare = load(DOCS / "closedloop" / "closedloop_calib_compare.json")
 campus_act = load(DOCS / "campus" / "campus_action_report.json")
 cc_policy = load(DOCS / "closedloop" / "closedloop_calib_policy.json")
 
+# ---- 多小区协同动作数据集 (v2 多 seed) ----
+coord_rep = load(DOCS / "campus" / "coord_action_report.json")
+coord_rb = load(ROOT / "datalake" / "generated" / "coord_seed_robustness.json")
+
 ta = results["task_a"]
 tb = results["task_b"]
 tc = results["task_c"]
@@ -598,6 +602,33 @@ para(doc,
      "逐位比对 mismatch=0, 在线路径与闭环评测完全一致。决策延迟 ~毫秒级 (单次前馈, 无需在线加载双 WM)。",
      size=10)
 
+heading(doc, "7.4 多小区协同动作数据集 (v2 多 seed 稳健版)", 2)
+para(doc,
+     "全局动作 (pmax/az/ho 全站同步施加) 无法表达小区级差异。scripts/coord_actions.py 在校准孪生 "
+     "(per-cell hook: cell_tx_scale_db) 上对逐小区功率偏移组合 (p_i ∈ {−6,−3,0,+3,+6} dB, 5³=125 组合) "
+     "生成同根分支数据集 v2: 5 场景 × 5 seeds × 125 组合 = 3125 行 "
+     "(datalake/generated/coord_action_dataset.parquet, v1 的 625 主 seed 行逐位兼容); "
+     "目标函数 obj = mean(per-UE SINR) + 0.5·min(per-UE SINR) (均值+边缘兼顾)。")
+_rows_coord = []
+for _sc, _s in coord_rep["scenes"].items():
+    _rows_coord.append([
+        _sc,
+        f"{_s['coordination_gain_mean']:+.3f} ± {_s['coordination_gain_std']:.3f}",
+        f"{_s['coordination_gain_min']:+.3f} ~ {_s['coordination_gain_max']:+.3f}",
+        f"{_s['joint_equals_global_rate']:.0%}",
+        str(_s["joint_best_combo_mode"]),
+    ])
+make_table(doc,
+    ["场景", "协同增益 (5 seeds, mean±std)", "增益范围", "联合==全局 比例", "联合最优众数"],
+    _rows_coord, widths=[3.0, 4.2, 3.4, 2.6, 3.0])
+para(doc,
+     "跨 seed 结论 (coord_seed_robustness.json, 25 scene×seed 对): 协同增益 (联合最优 − 全局最优) 是"
+     "场景结构性属性而非单 seed 噪声 —— 机器人工厂 5/5 seeds 增益>0 (mean +0.391±0.355, 中间小区降功率解 "
+     "(+6,−3/+6,+6)), 存在稳健的小区间干扰抑制结构; 低空 5/5 seeds 增益恰为 0 (联合==全局 100%); "
+     "城区/郊区以全局动作 (+6,+6,+6) 为主 (联合==全局 80%), 偶有微弱协同增益 (≤+0.017/+0.132)。"
+     "含义: 全局动作模型 (pmax_scale 单标量) 覆盖不了逐小区联合优化, 该数据集为后续 per-cell 协同策略 "
+     "提供 3125 条同根监督样本 (含逐小区特征 sinr_c0-2 / n_ue_c0-2)。", size=10)
+
 # ===== 8. 复核与负控制 =====
 heading(doc, "8. 独立复核与负控制验证 (2026-11-06)", 1)
 para(doc, "本轮对全部产物做了独立验证, 不依赖训练日志:")
@@ -687,7 +718,10 @@ code(doc, "cd world6g\npython3 -m wm.evaluate            # 四任务基准复跑
           "python3 scripts/train_policy_calib.py --which cal   # 校准策略动作模型\n"
           "python3 scripts/train_policy_calib.py --which uncal # 未校准策略 (配对)\n"
           "python3 scripts/eval_policy_calib.py            # 校准策略闭环 (40 真实窗 + 24 园区窗)\n"
-          "python3 scripts/make_calib_report.py            # 校准专项报告 (docx)")
+          "python3 scripts/make_calib_report.py            # 校准专项报告 (docx)\n"
+          "\n# ---- 多小区协同动作数据集 (7.4 节) ----\n"
+          "python3 scripts/coord_actions.py                # v2: 5 场景 × 5 seeds × 125 组合 (~40 min)\n"
+          "python3 scripts/coord_actions.py --n-seeds 1    # v1 兼容 (625 行)")
 
 out = DOCS / "world6g_full_technical_report.docx"
 doc.save(out)

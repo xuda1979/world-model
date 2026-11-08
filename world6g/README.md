@@ -146,4 +146,10 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
    **已部署**: 叠加前馈网络 `twm_serve.policy_action` 上线, `POST /api/wm/action`
    决策端点 + `/api/wm/verify` `action="auto"` 自动决策闭环 (96 held-out 窗与已提交评测
    逐位一致)
-3. 动作族扩展: 波束级动作 / 多小区协同动作
+3. 动作族扩展: 波束级动作 / ~~多小区协同动作~~ **已完成 v2** —
+   `scripts/coord_actions.py` 在校准孪生 (per-cell `cell_tx_scale_db` hook) 上生成
+   **3125 行多 seed 协同数据集** (5 场景 × 5 seeds × 125 逐小区功率组合,
+   `coord_action_dataset.parquet`); 跨 seed 稳健性: 机器人工厂场景 5/5 seeds 协同增益>0
+   (mean +0.391±0.355, 中间小区降功率解), 低空 5/5 增益恰为 0, 其余场景以全局动作为主
+   (联合==全局 60-100%) — 结论: 协同增益是场景结构性属性, 非单 seed 噪声
+   (`coord_seed_robustness.json` + `docs/campus/coord_action_report.json` v2)

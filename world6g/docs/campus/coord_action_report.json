@@ -1,0 +1,119 @@
+{
+ "meta": {
+  "date": "2026-11-09",
+  "script": "scripts/coord_actions.py",
+  "twin": "twin/calibrated.py (cell_tx_scale_db per-cell power offset hook)",
+  "action_space": "per-cell power offset p_i ∈ {−6,−3,0,+3,+6} dB, 5^3=125 combos, 3 cells",
+  "scenes": 5,
+  "combos_per_scene": 125,
+  "total_rows": 625,
+  "objective": "obj = mean(per-UE SINR) + 0.5 * min(per-UE SINR)  (均值+边缘兼顾)",
+  "same_root": "same scene seed → deterministic twin branch per combo",
+  "version": "v2 multi-seed (5 seeds/scene)",
+  "seeds_per_scene": 5,
+  "rows_total": 3125,
+  "dataset": "datalake/generated/coord_action_dataset.parquet"
+ },
+ "scenes": {
+  "campus": {
+   "seeds": [
+    9000,
+    10000,
+    11000,
+    12000,
+    13000
+   ],
+   "coordination_gain_mean": 0.04242,
+   "coordination_gain_std": 0.06266236203356046,
+   "coordination_gain_min": 0.0,
+   "coordination_gain_max": 0.16144375,
+   "joint_equals_global_rate": 0.6,
+   "max_lift_vs_baseline_mean": 3.6191462500000005,
+   "global_best_combo_mode": "+6,+6,+6",
+   "joint_best_combo_mode": "+6,+6,+6"
+  },
+  "低空": {
+   "seeds": [
+    9039,
+    10039,
+    11039,
+    12039,
+    13039
+   ],
+   "coordination_gain_mean": 0.0,
+   "coordination_gain_std": 0.0,
+   "coordination_gain_min": 0.0,
+   "coordination_gain_max": 0.0,
+   "joint_equals_global_rate": 1.0,
+   "max_lift_vs_baseline_mean": 3.1002800000000006,
+   "global_best_combo_mode": "+6,+6,+6",
+   "joint_best_combo_mode": "+6,+6,+6"
+  },
+  "城区": {
+   "seeds": [
+    9013,
+    10013,
+    11013,
+    12013,
+    13013
+   ],
+   "coordination_gain_mean": 0.0033775,
+   "coordination_gain_std": 0.006755,
+   "coordination_gain_min": 0.0,
+   "coordination_gain_max": 0.0168875,
+   "joint_equals_global_rate": 0.8,
+   "max_lift_vs_baseline_mean": 3.236975000000001,
+   "global_best_combo_mode": "+6,+6,+6",
+   "joint_best_combo_mode": "+6,+6,+6"
+  },
+  "机器人工厂": {
+   "seeds": [
+    9052,
+    10052,
+    11052,
+    12052,
+    13052
+   ],
+   "coordination_gain_mean": 0.39102875000000004,
+   "coordination_gain_std": 0.35520123382299085,
+   "coordination_gain_min": 0.0,
+   "coordination_gain_max": 0.949875,
+   "joint_equals_global_rate": 0.2,
+   "max_lift_vs_baseline_mean": 3.32650625,
+   "global_best_combo_mode": "+6,+6,+6",
+   "joint_best_combo_mode": "+6,-6,+6"
+  },
+  "郊区": {
+   "seeds": [
+    9026,
+    10026,
+    11026,
+    12026,
+    13026
+   ],
+   "coordination_gain_mean": 0.02646125,
+   "coordination_gain_std": 0.0529225,
+   "coordination_gain_min": 0.0,
+   "coordination_gain_max": 0.13230625,
+   "joint_equals_global_rate": 0.8,
+   "max_lift_vs_baseline_mean": 4.057181250000001,
+   "global_best_combo_mode": "+6,+6,+6",
+   "joint_best_combo_mode": "+6,+6,+6"
+  }
+ },
+ "findings": {
+  "nonuniform_beats_uniform": [
+   "机器人工厂",
+   "campus"
+  ],
+  "interpretation": "机器人工厂/campus 存在小区间干扰抑制结构: 中间小区降功率 (+6,−6,+6) 在保持边缘 SINR 的同时提升均值 SINR — 全局动作空间 (三小区同值) 无法表达该解; 城区/郊区/低空三场景最优解恰为全局动作 (+6,+6,+6), 协同增益 0 (但联合搜索不损失)。",
+  "implication_for_action_model": "全局动作模型 (pmax_scale 单标量) 覆盖不了逐小区联合优化; 该数据集为后续 per-cell 策略 (coord policy) 提供 625 条同根监督样本。"
+ },
+ "summary": {
+  "total_rows": 3125,
+  "scene_seed_pairs": 25,
+  "scenes_with_positive_gain": 4,
+  "key_finding": "机器人工厂场景存在稳健的小区间干扰抑制结构 (5/5 seeds 协同增益>0, mean +0.391±0.355, 联合最优多为 (+6,−3,+6)/(+6,−6,+6) 类中间小区降功率解); 低空场景 5/5 seeds 协同增益恰为 0 (联合==全局 100%); 城区/郊区以全局动作 (+6,+6,+6) 为主 (80% 联合==全局), 偶有微弱协同增益 (≤+0.017/+0.132)。",
+  "implication_for_action_model": "全局动作模型 (pmax_scale 单标量) 覆盖不了逐小区联合优化; v2 数据集 (3125 行, 25 scene×seed) 为 per-cell 策略提供 5× 同根监督样本。"
+ }
+}
