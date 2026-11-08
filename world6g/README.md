@@ -121,7 +121,8 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
 | `GET /api/capabilities` | 五项能力卡 |
 | `GET /api/campus` | 园区地图 (信息港·昌平) |
 | `POST /api/wm/rollout` | WM 多步 rollout (baseline vs 动作) |
-| `POST /api/wm/verify` | **预测-验证闭环** (rollout + 同 seed 重放 + RMSE/Δ 验证) |
+| `POST /api/wm/verify` | **预测-验证闭环** (rollout + 同 seed 重放 + RMSE/Δ 验证; `action="auto"` 由动作模型决策) |
+| `POST /api/wm/action` | **动作模型决策端点** (PolicyNet-Fused 一步前馈, `policy_action` 与闭环评测逐位一致) |
 | `POST /api/chat` | 工作台对话问答 (规则式, 数据湖驱动) |
 
 ## 可视化工作台
@@ -141,5 +142,8 @@ uv venv .venv --python 3.12 && .venv/bin/pip install duckdb pandas pyarrow fasta
    **融合奖励已验证并可部署**: `fuse_wm_planner.py` λ≈0.5 兼得闭环保真度与进攻性
    (lift 0.469 vs 0.269/0.404), 并已蒸馏为单网络动作模型
    `train_planner_fused.py` → `policy_fused_net.pt` —
-   **闭环 lift +0.550 [CI +0.361,+0.729] P>0=1.000** (唯一真实奖励为正的策略)
+   **闭环 lift +0.550 [CI +0.361,+0.729] P>0=1.000** (唯一真实奖励为正的策略);
+   **已部署**: 叠加前馈网络 `twm_serve.policy_action` 上线, `POST /api/wm/action`
+   决策端点 + `/api/wm/verify` `action="auto"` 自动决策闭环 (96 held-out 窗与已提交评测
+   逐位一致)
 3. 动作族扩展: 波束级动作 / 多小区协同动作

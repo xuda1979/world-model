@@ -168,6 +168,7 @@
         <label>Episode <select id="wmEp"></select></label>
         <label>UE <select id="wmUe"></select></label>
         <label>动作 <select id="wmAct">
+          <option value="auto">策略推荐 (动作模型自动决策)</option>
           <option value='{"type":"baseline","value":0}'>baseline (无动作)</option>
           <option value='{"type":"pmax_scale","value":0.8}'>发射功率 ×0.8</option>
           <option value='{"type":"pmax_scale","value":1.2}'>发射功率 ×1.2</option>
@@ -422,7 +423,8 @@ let WM_MODE = 'rollout';
 async function runWmRollout() {
   const epId = document.getElementById('wmEp').value;
   const ue = document.getElementById('wmUe').value;
-  const action = JSON.parse(document.getElementById('wmAct').value);
+  const actSel = document.getElementById('wmAct').value;
+  const action = actSel === 'auto' ? 'auto' : JSON.parse(actSel);
   const steps = +document.getElementById('wmSteps').value;
   const src = document.getElementById('wmSrc');
   const vtable = document.getElementById('wmVerifyTable');
@@ -467,7 +469,7 @@ async function runWmRollout() {
     });
     layout.xaxis = {gridcolor: 'rgba(148,163,184,.12)', title: {text: '时间 (s)', font: {size: 10}}};
     Plotly.react('wmPlot', traces, layout, {displayModeBar: false});
-    src.textContent = `模型: ${r.model.version}`;
+    src.textContent = `模型: ${r.model.version}${r.policy ? ' · 动作模型: ' + r.policy.version : ''}`;
 
     if (WM_MODE === 'verify') {
       // ---- 闭环验证表: 逐 KPI RMSE (WM vs Persistence) + Δ效应误差 ----
@@ -500,8 +502,10 @@ async function runWmRollout() {
           绿色 = 优于参考 (RMSE ≤ Persistence / Δ误差 ≤ 0.5·|Δ真值|); 同 seed 重放使动作因果效应精确可分离 — 真实网络无法重放, 这是孪生闭环的独特优势。
         </div>`;
       document.getElementById('wmNote').innerHTML =
-        `闭环验证: 动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> @ <b>${r.episode_id}</b> UE ${r.ue}, ` +
-        `${steps} 步 — 预测 (GRU-WM) / 执行 (Twin 重放) / 验证 (RMSE + Δ误差, 含 Persistence 基准) 三段闭环见上表。`;
+        (`闭环验证: 动作 <b>${r.action.type}${r.action.value ? '=' + r.action.value : ''}</b> @ <b>${r.episode_id}</b> UE ${r.ue}, ` +
+        `${steps} 步 — 预测 (GRU-WM) / 执行 (Twin 重放) / 验证 (RMSE + Δ误差, 含 Persistence 基准) 三段闭环见上表。`) +
+        (r.auto_action && r.auto_action.recommend != null ?
+          ` <b>动作模型推荐</b>: ${r.auto_action.type}=${r.auto_action.value.toFixed(2)} (${r.policy.version})` : '');
     } else {
       // 效应摘要: 动作后 − baseline 均值差
       const sums = WM_KPI.map(k => {
@@ -510,8 +514,10 @@ async function runWmRollout() {
         return `${k.name} ${m >= 0 ? '+' : ''}${m.toFixed(2)}${k.unit}`;
       }).join(' · ');
       document.getElementById('wmNote').innerHTML =
-        `动作 <b>${action.type}${action.value ? '=' + action.value : ''}</b> 在 episode <b>${r.episode_id}</b> ` +
+        `动作 <b>${r.action.type}${r.action.value ? '=' + r.action.value : ''}</b> 在 episode <b>${r.episode_id}</b> ` +
         `UE ${r.ue} 上 ${steps} 步 (×50ms) 的反事实预测: 均值效应 ${sums}。` +
+        (r.auto_action && r.auto_action.recommend != null ?
+          ` <b>动作模型推荐</b>: ${r.auto_action.type}=${r.auto_action.value.toFixed(2)} (${r.policy.version})` : '') +
         `训练数据: 同根反事实分支 (twin_action_dataset, 83,200 样本); 未通过检查的任务保留原引擎 (方案二 §四)。`;
     }
   } catch (e) {

@@ -1,6 +1,6 @@
 {
  "meta": {
-  "date": "2026-11-06 16:48",
+  "date": "2026-11-06 17:05",
   "seed": 2026,
   "n_windows": 96,
   "n_per_scene": 24,
@@ -19,7 +19,7 @@
    "policy": "models/policy_net.pt",
    "policy_fused": "models/policy_fused_net.pt"
   },
-  "runtime_s": 49.3
+  "runtime_s": 47.0
  },
  "summary": {
   "strategy": {

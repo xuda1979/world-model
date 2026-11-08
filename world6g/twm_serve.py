@@ -45,12 +45,98 @@ _MODEL = None
 _META = None
 
 # 服务模型优先级: v2 多步一致性 (MS) > v0.2 单步 (gru_wm.pt)
-# MS 模型 rollout 复合误差显著更低 (h40 RMSE_norm 0.849 vs 1.103, Task B v2)
+# MS 模型 rollout 复合误差显著更低 (h40 RMSE_norm 0.848 vs 1.088, 基准 results.json task_b)
 _CANDIDATES = [
     ("gru_wm_ms.pt", "gru_wm_ms_meta.json",
      "GRU-WM v0.3-MS (seed42, 多步一致性训练, twin_action_dataset rollout windows)"),
     ("gru_wm.pt", "gru_wm_meta.json", None),
 ]
+
+# 动作模型 (规划器蒸馏) 优先级: 融合策略 (λ=0.5, 闭环最优) > 生产策略 (MS 蒸馏)
+# 闭环实证 (96 held-out 窗, 同根 twin): Policy-Fused lift +0.550 [CI +0.361,+0.729]
+# P>0=1.000, 首个真实奖励为正的策略 (+0.119 vs NoAction −0.432)。
+_POLICY_CANDIDATES = [
+    ("policy_fused_net.pt", "policy_fused_meta.json",
+     "PolicyNet-Fused (λ=0.5 融合奖励蒸馏, 29,577 params, 闭环 lift +0.550)"),
+    ("policy_net.pt", "policy_meta.json",
+     "PolicyNet (CEM-MPC/MS 蒸馏, 闭环 lift +0.283)"),
+]
+
+_POLICY = None
+_POLICY_META = None
+_POLICY_LOAD_FAILED = False
+
+
+def load_policy():
+    """懒加载动作模型 (优先融合策略 policy_fused_net.pt); 失败返回 None"""
+    global _POLICY, _POLICY_META, _POLICY_LOAD_FAILED
+    if _POLICY is not None:
+        return _POLICY
+    if _POLICY_LOAD_FAILED:
+        return None
+    from wm.models import N_STATE
+    for ckpt, meta_f, version in _POLICY_CANDIDATES:
+        try:
+            meta = json.loads((MODELS_DIR / meta_f).read_text(encoding="utf-8"))
+            net_type = _policy_net_class()
+            if net_type is None:
+                _POLICY_LOAD_FAILED = True
+                return None
+            net = net_type(hist=int(meta["hist"]), n_state=N_STATE)
+            net.load_state_dict(torch.load(MODELS_DIR / ckpt, map_location="cpu"))
+            net.eval()
+            _POLICY, _POLICY_META = net, {**meta, "version": version}
+            return net
+        except Exception:
+            continue
+    _POLICY_LOAD_FAILED = True
+    return None
+
+
+def _policy_net_class():
+    """从 scripts.train_planner 加载 PolicyNet 定义 (服务端不复制结构)"""
+    try:
+        from scripts.train_planner import PolicyNet
+        return PolicyNet
+    except Exception as e:
+        print(f"[twm_serve] PolicyNet 加载失败: {e}")
+        return None
+
+
+def policy_action(hist_states: np.ndarray) -> dict:
+    """动作模型一步决策: hist_states [H,S] 原始单位 → {'type', 'value'|None, 'recommend'}
+    与 eval_closedloop.action_of_policy 完全同构 (蒸馏网络已含归一化 v_lo/v_hi)"""
+    pol = load_policy()          # 先加载 (首次调用才填充 _POLICY/_POLICY_META)
+    if pol is None:
+        return {"available": False, "type": "none", "value": None, "recommend": False}
+    meta = _POLICY_META          # 冷启动首次调用安全 (load_policy 已确保非 None)
+    mu = np.array(meta["mu"]); sd = np.array(meta["sd"])
+    x = torch.tensor(((hist_states - mu) / sd).reshape(1, -1), dtype=torch.float32)
+    with torch.no_grad():
+        logits, vals = pol(x)
+    t_i = int(logits.argmax(1)[0])
+    if t_i == 0:
+        return {"available": True, "recommend": False, "type": "none", "value": 0.0}
+    atype = meta["int_types"][t_i]
+    val = float(pol.denorm_value(vals)[0, t_i - 1])
+    return {"available": True, "recommend": True, "type": atype, "value": val}
+
+
+def policy_info() -> dict:
+    if load_policy() is None:
+        return {"available": False, "reason": "policy_net.pt 未找到或加载失败"}
+    m = _POLICY_META
+    closedloop = m.get("closedloop_verification")
+    return {"available": True, "version": m.get("version"),
+            "params": m.get("params"), "val_type_acc": m.get("val_type_acc"),
+            "state_cols": m["state_cols"], "hist": m["hist"],
+            "int_types": m["int_types"],
+            "lift_vs_noaction": m.get("lift_vs_noaction")
+                                or (closedloop or {}).get("lift_vs_noaction"),
+            "closedloop": closedloop,
+            "source_wms": m.get("source_wms"), "fused_lambda": m.get("fused_lambda"),
+            "objective": m.get("objective", ""),
+            "trained_at": m.get("trained_at", "")}
 
 
 def load_model():
@@ -177,15 +263,17 @@ def model_info() -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(model_info(), ensure_ascii=False, indent=1))
-    # 冒烟测试: 用 twin_01 前窗 rollout
-    df = pd.read_parquet(GEN_DIR / "twin_01_ue.parquet")
-    cols = _META["state_cols"]
-    g = df[df.UEID == df.UEID.iloc[0]].sort_values("时间戳(ms)")
-    hist = g[cols].values[:8]
-    t0 = time.time()
-    preds = predict_rollout(hist, {"type": "baseline"}, steps=40)
-    dt = (time.time() - t0) * 1000
-    print(f"rollout 40 步耗时 {dt:.1f} ms | 前 3 步 RSRP: {preds[:3, 0].round(1)}")
-    pers = persistence_rollout(hist, 40)
-    print(f"persistence RSRP: {pers[:3, 0].round(1)}")
+    print(json.dumps({"model": model_info(), "policy": policy_info()},
+                     ensure_ascii=False, indent=1))
+    net = load_policy()
+    if net is not None:
+        # 冷启动冒烟: 用 twin_01 前窗做一步决策 (与闭环协议同构)
+        df = pd.read_parquet(GEN_DIR / "twin_01_ue.parquet")
+        cols = _META["state_cols"]
+        g = df[df.UEID == df.UEID.iloc[0]].sort_values("时间戳(ms)")
+        hist = g[cols].values[-8:].astype(float)
+        t0 = time.time()
+        a = policy_action(hist)
+        dt = (time.time() - t0) * 1000
+        print(f"policy 一步决策: {a['type']}={a['value']:.3f} (recommend={a['recommend']}) "
+              f"耗时 {dt:.1f} ms")

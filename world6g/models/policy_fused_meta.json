@@ -69,5 +69,19 @@
   "models/gru_wm_ms.pt (seed42, 多步一致性)",
   "models/gru_wm.pt (v0.2, 单步)"
  ],
- "fused_lambda": 0.5
+ "fused_lambda": 0.5,
+ "closedloop_verification": {
+  "protocol": "96 held-out windows, 24/scene, t>=8000ms, seed 2026, same-root twin execution, reward scale MS mu/sd",
+  "n_windows": 96,
+  "action_rate": 0.77,
+  "az_vs_none": "az 74 / none 22",
+  "lift_vs_noaction": 0.5504,
+  "lift_ci": "[+0.361, +0.729]",
+  "p_lift_gt_0": 1.0,
+  "win_rate": 0.57,
+  "real_reward": 0.1186,
+  "noaction_reward": -0.4319,
+  "result_file": "docs/closedloop/closedloop_fused.json",
+  "eval_script": "scripts/eval_closedloop_fused.py"
+ }
 }

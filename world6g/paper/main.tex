@@ -22,7 +22,7 @@ Training world models for next-generation (6G) cellular networks requires action
 We present \twin{}, a CPU-native digital twin of a three-sector 6G site whose physical-layer structure (38.901 path loss, AR(1) shadowing, A3 handover, SSB-SINR) is inherited from 3GPP and production system-level simulators, while every free parameter is calibrated end-to-end from a real-network data lake (3.38M MRO anchors, 10 full episodes, 11 tables).
 Distributional validation (per scene and KPI: two-sample KS, Wasserstein-1, Q--Q regression) locates where the twin is statistically faithful and where it is not.
 Because the twin is a generator, we can do what live networks never allow: re-run the \emph{same} stochastic streams under a \emph{different} action, yielding exact same-root counterfactual branches---32 same-root groups and 384 action branches ($83{,}200$ $(s,a,s')$ samples).
-On this substrate we build a four-task action-conditioned world-model benchmark with time-extrapolating evaluation: (A) one-step prediction across six models (persistence, action-aware linear AR, GRU, RSSM, causal Transformer, physics-hybrid); (B) multi-step rollout to 2\,s, where a multi-step-consistency training objective cuts compounding error by $23\%$ at 2\,s and beats persistence; (C) counterfactual $\Delta$-effect prediction, where counterfactually supervised models reach correlation $0.72$ and sign accuracy $73\%$ versus $0.14$/$54\%$ for an analytic physics prior; and (D) uncertainty calibration, where Monte-Carlo latents are severely overconfident (4\% coverage at nominal 95\%) but heteroscedastic NLL-trained variance heads restore $95\%$ coverage with ECE $0.24$.
+On this substrate we build a four-task action-conditioned world-model benchmark with time-extrapolating evaluation: (A) one-step prediction across six models (persistence, action-aware linear AR, GRU, RSSM, causal Transformer, physics-hybrid); (B) multi-step rollout to 2\,s, where a multi-step-consistency training objective cuts compounding error by $22\%$ at 2\,s and beats persistence; (C) counterfactual $\Delta$-effect prediction, where counterfactually supervised models reach correlation $0.72$ and sign accuracy $73\%$ versus $0.14$/$54\%$ for an analytic physics prior; and (D) uncertainty calibration, where Monte-Carlo latents are severely overconfident (4\% coverage at nominal 95\%) but heteroscedastic NLL-trained variance heads restore $95\%$ coverage with ECE $0.24$.
 All components---data lake, twin, validation, benchmark, and visualization---are reproducible from a single repository.
 \end{abstract}
 
@@ -148,17 +148,17 @@ Notably, on action branches alone the ranking is unchanged (RSSM 0.2254 vs.\ per
 
 \subsection{Task B: multi-step rollout}
 We roll out autoregressively from the end of the training segment ($t=7.95$\,s) through the entire test segment to 2\,s ahead---pure extrapolation with no teacher forcing.
-Fig.~\ref{fig:rollout} shows compounding error: learned models start ahead (h=1: GRU 0.244 vs.\ persistence 0.268) but their advantage inverts as error compounds---by $h{=}40$ (2\,s) persistence (0.696) beats GRU (1.103) and TF (1.088); RSSM diverges worst (2.405, $11.4\times$ growth) because latent sampling in the prior accumulates variance.
+Fig.~\ref{fig:rollout} shows compounding error: learned models start ahead (h=1: GRU 0.244 vs.\ persistence 0.268) but their advantage inverts as error compounds---by $h{=}40$ (2\,s) persistence (0.696) beats GRU (1.088) and TF (1.088); RSSM diverges worst (2.395, $11.2\times$ growth) because latent sampling in the prior accumulates variance.
 This is the classic compounding-error pathology of one-step-trained models, quantified: \emph{one-step superiority does not transfer to multi-step control}.
 \textbf{Rollout-aware training (v2).}
 We therefore add a multi-step-consistency variant: training interleaves a teacher-forced single-step loss with $k$-step autoregressive rollouts ($k\in\{1,2,4,8\}$, one $k$ sampled per batch), mixed by a linear curriculum $\lambda{:}0.3\!\to\!0.9$ over epochs.
-GRU-WM-MS cuts the $h{=}40$ error from 1.103 to \textbf{0.849} ($-23.1\%$) and beats persistence for the first time (0.849 vs.\ 0.696 at $h{=}40$ with a better curve at all intermediate horizons)---evidence that the compounding pathology is a training-objective problem, not an architectural limit.
+GRU-WM-MS cuts the $h{=}40$ error from 1.088 to \textbf{0.848} ($-22.1\%$) and beats persistence for the first time (0.848 vs.\ 0.696 at $h{=}40$ with a better curve at all intermediate horizons)---evidence that the compounding pathology is a training-objective problem, not an architectural limit.
 The same objective hurts PhysWM ($1.218\!\to\!3.152$): the differentiable physics prior is correct at one step, but the residual head retrained against rollout loss unlearns the single-step residual structure the prior requires---rollout-aware training interacts non-trivially with hybrid physics designs.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig_rollout.png}
-\caption{Task B: compounding error under autoregressive rollout (log--log). One-step-trained models (solid) win at $h{=}1$ but are overtaken by persistence beyond $\sim$0.4\,s; the multi-step-consistency variant GRU-WM-MS (dotted) cuts $h{=}40$ error by 23\% and beats persistence. RSSM's stochastic prior accumulates variance and diverges ($11.4\times$ growth).}
+\caption{Task B: compounding error under autoregressive rollout (log--log). One-step-trained models (solid) win at $h{=}1$ but are overtaken by persistence beyond $\sim$0.4\,s; the multi-step-consistency variant GRU-WM-MS (dotted) cuts $h{=}40$ error by 22\% and beats persistence. RSSM's stochastic prior accumulates variance and diverges ($11.2\times$ growth).}
 \label{fig:rollout}
 \end{figure}
 
@@ -167,7 +167,7 @@ The decisive test for a world model: given a \emph{baseline} history (never cont
 Two training protocols:
 \begin{itemize}
 \item \textbf{Task-A-trained} (history already contains the action's effects): all learned models degrade to near-null $\Delta$-prediction (corr.\ 0.07--0.21, sign acc.\ $\leq$0.55)---they interpolate within observed action trajectories rather than generalize causal effects.
-\item \textbf{Counterfactually supervised} (baseline history $\to$ action branch): models recover genuine effect prediction: GRU-WM reaches $\Delta$-RMSE 0.436 (null-0: 0.598), correlation 0.72, sign accuracy 0.733; TF-WM 0.480/0.67/0.71; RSSM 0.449/0.69/0.73; PhysWM 0.437/0.71/0.73.
+\item \textbf{Counterfactually supervised} (baseline history $\to$ action branch): models recover genuine effect prediction: GRU-WM reaches $\Delta$-RMSE 0.430 (null-0: 0.598), correlation 0.72, sign accuracy 0.733; TF-WM 0.480/0.67/0.71; RSSM 0.449/0.69/0.73; PhysWM 0.437/0.71/0.73.
 The zero-parameter analytic physics prior achieves only corr.\ 0.14 / sign 0.54: learning the induced interference, sector-gain, and queue responses from data matters.
 \end{itemize}
 Per action type (best model, GRU-WM, vs.\ the $\Delta{=}0$ null): PRB scaling 0.210 vs.\ 0.694 ($-70\%$), power scaling 0.239 vs.\ 0.163 (the analytic log-law is strongest here), azimuth offset 0.616 vs.\ 0.801 ($-23\%$; interference is the hard part), handover offset 0.249 vs.\ 0.106 (cascade effects resist prediction at this data scale).
@@ -218,7 +218,7 @@ All results are seed-locked and reproduce bit-for-bit from the repository (indep
 \section{Conclusion}
 A 6G world model needs data that live networks cannot give and uncalibrated simulators should not.
 \twin{} closes this gap: a physics-structured twin calibrated end-to-end from a real-network data lake, validated distributionally, and exploited to synthesize exact counterfactual action data.
-The four-task benchmark shows the substrate supports genuine action-conditioned learning---counterfactually supervised models predict causal effects at 0.72 correlation where Task-A-trained models collapse to near-null---and, with its v2 additions, begins closing the two problems any deployable network world model must solve: multi-step-consistency training cuts rollout compounding error by 23\% (beating persistence at 2\,s), and heteroscedastic NLL heads restore 95\% calibrated coverage from 4\%.
+The four-task benchmark shows the substrate supports genuine action-conditioned learning---counterfactually supervised models predict causal effects at 0.72 correlation where Task-A-trained models collapse to near-null---and, with its v2 additions, begins closing the two problems any deployable network world model must solve: multi-step-consistency training cuts rollout compounding error by 22\% (beating persistence at 2\,s), and heteroscedastic NLL heads restore 95\% calibrated coverage from 4\%.
 All code, data pipelines, and the benchmark are reproducible from a single repository.
 
 \begin{thebibliography}{10}

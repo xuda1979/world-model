@@ -329,6 +329,21 @@ def capabilities():
         "desc": "反事实同根分支: az/pmax/prb/ho 四类动作对 RSRP/SINR/DL/CQI 的实测效应",
         "source": "action_report.json (twin 动作族 48 组)",
     })
+    try:
+        p_info = wm.policy_info()
+    except Exception:
+        p_info = {"available": False}
+    if p_info.get("available"):
+        cl = p_info.get("closedloop") or {}
+        cards.append({
+            "id": "planner", "name": "动作模型 (规划器推荐)",
+            "desc": "融合奖励蒸馏动作模型: 一步前馈决策 (az/pmax/prb/ho), 闭环实测 "
+                    f"lift +{cl.get('lift_vs_noaction', '?')} (96 held-out 窗, "
+                    f"P>0={cl.get('p_lift_gt_0', '?')}); 首个真实奖励为正的策略",
+            "model": {"version": p_info["version"], "params": p_info["params"],
+                      "hist": p_info["hist"], "available": True},
+            "source": cl.get("result_file", "docs/closedloop/closedloop_fused.json"),
+        })
     cards.append({
         "id": "fidelity", "name": "统计保真度",
         "desc": "真实 338 万 MRO 样本 vs Twin 生成: 分布对齐检验",
@@ -360,6 +375,17 @@ async def wm_rollout(req: dict):
         ue = int(req.get("ue", df.UEID.iloc[0]))
         g = df[df.UEID == ue].sort_values("时间戳(ms)")
         hist = g[cols].values[:H].astype(float)
+        # action="auto" → 动作模型一步决策 (与 verify 同构, 使"策略推荐"在两种模式可用)
+        auto_action = None
+        auto_action_raw = None
+        if isinstance(action, str) and action == "auto":
+            auto_action_raw = wm.policy_action(hist)
+            if not auto_action_raw["available"] or not auto_action_raw["recommend"]:
+                action = {"type": "baseline", "value": 0}
+                auto_action = {"type": "none", "value": 0.0, "recommend": False}
+            else:
+                action = {"type": auto_action_raw["type"], "value": float(auto_action_raw["value"])}
+                auto_action = {"type": action["type"], "value": action["value"], "recommend": True}
         base = wm.predict_rollout(hist, {"type": "baseline"}, steps=steps)
         acted = wm.predict_rollout(hist, action, steps=steps)
         t0 = float(g["时间戳(ms)"].iloc[H - 1]) if len(g) > H - 1 else 0.0
@@ -368,6 +394,8 @@ async def wm_rollout(req: dict):
             "episode_id": ep_id, "ue": ue, "action": action, "steps": steps,
             "state_cols": cols, "dt_ms": dt_ms, "t0": t0,
             "baseline": base.round(3).tolist(), "acted": acted.round(3).tolist(),
+            "auto_action": auto_action,
+            "policy": wm.policy_info() if auto_action is not None else None,
             "model": wm.model_info(),
         }
     except HTTPException:
@@ -416,15 +444,18 @@ def _replay_twin_branch(ep_id: str, action: dict | None):
 
 @app.post("/api/wm/verify")
 async def wm_verify(req: dict):
-    """预测-验证闭环: {episode_id (twin_NN), ue, action: {type, value}, steps<=160}
+    """预测-验证闭环: {episode_id (twin_NN), ue, action: {type, value}|"auto", steps<=160}
     1. 预测: GRU-WM 对 baseline / action 各 rollout steps 步
     2. 执行: Twin 引擎同 seed 重放两条真值轨 (同根, 动作因果效应精确可分离)
     3. 验证: 逐 KPI 的 rollout RMSE + Δ效应误差 (预测Δ vs 真值Δ)
+
+    action="auto" → 动作模型 (PolicyNet-Fused) 一步决策该时刻动作 (闭环决策演示).
     """
     import time as _time
     ep_id = str(req.get("episode_id", ""))
     action = req.get("action") or {"type": "baseline", "value": 0}
     steps = int(min(max(int(req.get("steps", 80)), 1), 160))
+    t_w = int(req.get("window_t", -1))          # twin_ep 的时间索引窗 (t+1≥hist 才可预测)
     if ep_id not in _TWIN_EP:
         raise HTTPException(400, f"verify 仅支持 twin episodes: {sorted(_TWIN_EP)} (引擎可确定性重放)")
     try:
@@ -437,7 +468,22 @@ async def wm_verify(req: dict):
         g = df[df.UEID == ue].sort_values("时间戳(ms)")
         if len(g) < H + steps:
             raise HTTPException(400, f"episode 长度不足: 需 {H + steps} 步, 实际 {len(g)}")
-        hist = g[cols].values[:H].astype(float)
+        if t_w == -1:
+            t_w = H - 1   # 默认取首个可预测窗
+        if not (H - 1 <= t_w <= len(g) - steps - 1):
+            raise HTTPException(400, f"window_t={t_w} 越界: 需 [{H-1}, {len(g)-steps-1}]")
+        hist = g[cols].values[t_w - H + 1: t_w + 1].astype(float)
+
+        if isinstance(action, str) and action == "auto":
+            act = wm.policy_action(hist)
+            if not act["available"] or not act["recommend"]:
+                action = {"type": "baseline", "value": 0}
+                auto_action = {"type": "none", "value": 0.0, "recommend": False}
+            else:
+                action = {"type": act["type"], "value": float(act["value"])}
+                auto_action = {"type": act["type"], "value": float(act["value"]), "recommend": True}
+        else:
+            auto_action = None
 
         t_pred0 = _time.time()
         pred_base = wm.predict_rollout(hist, {"type": "baseline"}, steps=steps)
@@ -452,35 +498,38 @@ async def wm_verify(req: dict):
 
         gb = truth_base_df[truth_base_df.UEID == ue].sort_values("时间戳(ms)")
         ga = truth_act_df[truth_act_df.UEID == ue].sort_values("时间戳(ms)")
-        truth_base = gb[cols].values[H:H + steps].astype(float)
-        truth_act = ga[cols].values[H:H + steps].astype(float)
+        truth_base = gb[cols].values[t_w + 1: t_w + 1 + steps].astype(float)
+        truth_act = ga[cols].values[t_w + 1: t_w + 1 + steps].astype(float)
 
         kpis = []
         for i, km in enumerate(_KPI_META):
             pb, pa = pred_base[:, i], pred_act[:, i]
             tb, ta = truth_base[:, i], truth_act[:, i]
             pp = np.full(steps, float(hist[-1, i]))   # Persistence 参考: 末值保持 (无动作感知, Δ=0)
+            d_pred = float((pa - pb).mean()); d_truth = float((ta - tb).mean())
             kpis.append({
                 "name": km["name"], "unit": km["unit"],
                 "rmse_base": round(float(np.sqrt(((pb - tb) ** 2).mean())), 3),
                 "rmse_act": round(float(np.sqrt(((pa - ta) ** 2).mean())), 3),
                 "rmse_persist": round(float(np.sqrt(((pp - tb) ** 2).mean())), 3),
-                "delta_pred": round(float((pa - pb).mean()), 3),      # 预测的动作平均效应
-                "delta_truth": round(float((ta - tb).mean()), 3),     # 真值动作平均效应
-                "delta_err": round(float(abs((pa - pb).mean() - (ta - tb).mean())), 3),
+                "delta_pred": round(d_pred, 3),      # 预测的动作平均效应
+                "delta_truth": round(d_truth, 3),     # 真值动作平均效应
+                "delta_err": round(float(abs(d_pred - d_truth)), 3),
                 "pred_base": np.round(pb, 3).tolist(),
                 "pred_act": np.round(pa, 3).tolist(),
                 "truth_base": np.round(tb, 3).tolist(),
                 "truth_act": np.round(ta, 3).tolist(),
             })
 
-        t0 = float(g["时间戳(ms)"].iloc[H - 1])
+        t0 = float(g["时间戳(ms)"].iloc[t_w])
         return {
             "episode_id": ep_id, "ue": ue, "action": action, "steps": steps,
-            "scene": _TWIN_EP[ep_id][0], "dt_ms": 50.0, "t0": t0,
+            "window_t": t_w, "scene": _TWIN_EP[ep_id][0], "dt_ms": 50.0, "t0": t0,
+            "auto_action": auto_action,
             "kpis": kpis,
             "timing_ms": {"predict": round(t_pred, 1), "execute": round(t_exec, 1)},
             "model": wm.model_info(),
+            "policy": wm.policy_info() if auto_action else None,
             "protocol": ("预测 (GRU-WM 多步自回归 rollout) → 执行 (Tiny-Twin 引擎同 seed 重放, "
                          "同根分支真值) → 验证 (逐 KPI RMSE + Δ效应误差)"),
         }
@@ -488,6 +537,35 @@ async def wm_verify(req: dict):
         raise
     except Exception as e:
         raise HTTPException(500, f"verify failed: {e}")
+
+
+@app.post("/api/wm/action")
+async def wm_action(req: dict):
+    """动作模型 (PolicyNet-Fused) 一步决策: {episode_id, ue?, window_t?}
+    返回推荐的干预动作 (type/value) + 该时刻监督信号 (auto-shadow, 真实 Twin 仿真对齐)
+    """
+    wm = importlib.import_module("twm_serve")
+    if wm.load_policy() is None:
+        raise HTTPException(503, "动作模型不可用 (policy_fused_net.pt 未找到或加载失败)")
+    ep_id = str(req.get("episode_id", ""))
+    df = _ep_ue_df(ep_id)
+    if df.empty:
+        raise HTTPException(404, f"episode {ep_id} not found")
+    cols = wm._POLICY_META["state_cols"]; H = wm._POLICY_META["hist"]
+    ue = int(req.get("ue", df.UEID.iloc[0]))
+    g = df[df.UEID == ue].sort_values("时间戳(ms)")
+    t_w = int(req.get("window_t", len(g) - 1))
+    if not (H - 1 <= t_w < len(g)):
+        raise HTTPException(400, f"window_t={t_w} 越界: 需 [{H-1}, {len(g)-1}]")
+    hist = g[cols].values[t_w - H + 1: t_w + 1].astype(float)
+    a = wm.policy_action(hist)
+    return {
+        "episode_id": ep_id, "ue": ue, "window_t": t_w,
+        "t_ms": float(g["时间戳(ms)"].iloc[t_w]),
+        "action": {"type": a["type"], "value": float(a["value"] or 0.0)},
+        "recommend": a["recommend"], "hist": hist.round(2).tolist(),
+        "policy": wm.policy_info(),
+    }
 
 
 # ================= 园区地图 (中国移动信息港·昌平) =================

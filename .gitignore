@@ -7,5 +7,8 @@ world6g/datalake/curated/*.parquet
 .DS_Store
 .playwright-mcp/
 *.png
+# host autonomy runtime state (never commit)
+/.future/
+/.future-code/goal-autonomy.json
 !world6g/docs/img/*.png
 !world6g/docs/wm_suite/*.png
