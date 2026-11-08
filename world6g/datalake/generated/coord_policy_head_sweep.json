@@ -1,0 +1,154 @@
+{
+ "objective": "coord policy 双头 (score/value) 部署头选型 sweep",
+ "n_train_seeds": 10,
+ "epochs": 300,
+ "agg": {
+  "score": {
+   "regret_mean": 0.2401,
+   "regret_mean_std": 0.0433,
+   "exact_rate": 0.516,
+   "realize_ratio": 0.9308,
+   "realize_ratio_std": 0.0125
+  },
+  "value": {
+   "regret_mean": 0.1226,
+   "regret_mean_std": 0.0157,
+   "exact_rate": 0.604,
+   "realize_ratio": 0.9646,
+   "realize_ratio_std": 0.0045
+  }
+ },
+ "per_seed": [
+  {
+   "train_seed": 177,
+   "score": {
+    "regret_mean": 0.3363,
+    "exact_rate": 0.48,
+    "realize_ratio": 0.903
+   },
+   "value": {
+    "regret_mean": 0.1279,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9631
+   }
+  },
+  {
+   "train_seed": 178,
+   "score": {
+    "regret_mean": 0.234,
+    "exact_rate": 0.52,
+    "realize_ratio": 0.9325
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  },
+  {
+   "train_seed": 179,
+   "score": {
+    "regret_mean": 0.2454,
+    "exact_rate": 0.52,
+    "realize_ratio": 0.9292
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  },
+  {
+   "train_seed": 180,
+   "score": {
+    "regret_mean": 0.2472,
+    "exact_rate": 0.48,
+    "realize_ratio": 0.9287
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  },
+  {
+   "train_seed": 181,
+   "score": {
+    "regret_mean": 0.2559,
+    "exact_rate": 0.52,
+    "realize_ratio": 0.9262
+   },
+   "value": {
+    "regret_mean": 0.1087,
+    "exact_rate": 0.64,
+    "realize_ratio": 0.9686
+   }
+  },
+  {
+   "train_seed": 182,
+   "score": {
+    "regret_mean": 0.2145,
+    "exact_rate": 0.56,
+    "realize_ratio": 0.9381
+   },
+   "value": {
+    "regret_mean": 0.165,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9524
+   }
+  },
+  {
+   "train_seed": 183,
+   "score": {
+    "regret_mean": 0.2503,
+    "exact_rate": 0.48,
+    "realize_ratio": 0.9278
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  },
+  {
+   "train_seed": 184,
+   "score": {
+    "regret_mean": 0.2493,
+    "exact_rate": 0.52,
+    "realize_ratio": 0.9281
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  },
+  {
+   "train_seed": 185,
+   "score": {
+    "regret_mean": 0.1527,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.956
+   },
+   "value": {
+    "regret_mean": 0.1022,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9705
+   }
+  },
+  {
+   "train_seed": 186,
+   "score": {
+    "regret_mean": 0.2151,
+    "exact_rate": 0.48,
+    "realize_ratio": 0.938
+   },
+   "value": {
+    "regret_mean": 0.1204,
+    "exact_rate": 0.6,
+    "realize_ratio": 0.9653
+   }
+  }
+ ],
+ "trained_at": "2026-11-09 01:10"
+}

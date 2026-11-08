@@ -1624,3 +1624,26 @@ bootstrap CI + 阴性对照) → 融合奖励蒸馏 → **服务栈部署**。
   26 编号标题完整含 7.4, 协同表 5 场景行数值正确。
 - **诚实注记**: 逐小区策略蒸馏 (coord policy) 仍为下阶段; 协同数据集仍为静态
   单步评估 (动态时序协同 MDP 未动)。
+
+## 会话 29 (2026-11-09, round 177): 逐小区协同策略蒸馏 — coord policy 值头部署 + LOSO 泛化 (会话 28 遗留)
+**任务**: 任务 #13 — 把 v2 协同数据集 (3125 行) 蒸馏成可部署的逐小区联合决策模型 (#12 的"下阶段")。
+- **动机**: v2 数据集只证明协同有收益 (跨 5 seeds +0.391), 在线使用需把 125 组合枚举蒸馏为单网络;
+  全局动作模型 (7.2-7.3) 无法表达小区级差异, coord policy 填补第三类动作模型缺口。
+- **方法** (scripts/train_coord_policy.py, 新增 361 行):
+  - 决策上下文 = 基线 (0,0,0) 行逐小区特征 (sinr_c0-2/n_ue_c0-2, log1p 压缩) + 场景 one-hot —
+    动作前可知, 无结果泄漏 (v2 的逐小区特征是动作后的, 直接当输入会泄漏);
+  - 网络: [ctx 11 + 动作 one-hot 15 + 嵌入 16] → 512³ MLP 双头 (score softmax / 值回归),
+    61.39 万参数; 训练 = 软分布匹配 q*∝exp(obj/0.5) + 值蒸馏 smooth-L1 (0.5);
+  - 泛化: leave-one-seed-out 5 折 (每折留 1 seed × 5 场景 × 125 组合);
+  - 部署头选型 (scripts/sweep_coord_policy.py, 10 训练 seed): 值头 10/10 全胜
+    (regret 0.1226±0.0157 vs score 0.2401±0.0433; 实现率 96.5% vs 93.1%), 规则固化为值头 argmax。
+- **结果** (权威: models/coord_policy_meta.json + datalake/generated/coord_policy_loso.json):
+  LOSO regret mean 0.1279 (p50 0.0169, max 0.9499, 精确命中 60%);
+  lift_vs_base +3.3401 vs oracle +3.4680 → 协同增益实现率 96.3%。
+- **报告**: 技术报告新增 7.5 节 (4 段 + LOSO 逐折表); probe_report_v3.py 扩展至 47 断言
+  (含 meta/loso 双源逐折一致性校验), 47/47 全绿; pytest 13 passed。
+- **产物**: coord_policy.pt / coord_policy_meta.json / coord_policy_loso.json /
+  coord_policy_head_sweep.json / train_coord_policy.py / sweep_coord_policy.py /
+  报告 docx 重建。
+- **诚实注记**: LOSO 留出的是新 seed 而非新场景 (5 场景全部在训练集出现);
+  静态单步评估, 动态时序协同 MDP 未动; 25 上下文小样本, sweep 用 10 seed 抑制选型噪声。

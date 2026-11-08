@@ -83,6 +83,7 @@ def main() -> int:
         "4.6 诚实局限",
         "5.1 Task A — 单步预测 (时间外推)",
         "7.2 融合奖励蒸馏 (λ=0.5) 与仿真器闭环评测",
+        "7.5 逐小区协同策略蒸馏 (coord policy)",
         "附录 B: 复现命令",
     ):
         want("章节标题", t)
@@ -115,6 +116,34 @@ def main() -> int:
     want("pol-cal real lift", f4(rw["cal_policy_lift"]))
     want("pol-cal campus lift", f4(cw["cal_policy_lift"]))
     want("pol-cal campus p", f"{cw['cal_policy_p']:.3f}" if "cal_policy_p" in cw else "0.999")
+
+    # ---- 7.5 coord policy (coord_policy_meta / loso / head_sweep, 独立重算) ----
+    cpm = load(ROOT / "models" / "coord_policy_meta.json")
+    loso = load(ROOT / "datalake" / "generated" / "coord_policy_loso.json")
+    sweep = load(ROOT / "datalake" / "generated" / "coord_policy_head_sweep.json")
+    s = cpm["loso_summary"]
+    want("cp 参数量", f"{cpm['params']:,}")
+    want("cp regret mean", f4(s["regret_mean"]))
+    want("cp regret p50", f4(s["regret_p50"]))
+    want("cp regret max", f4(s["regret_max"]))
+    want("cp regret exact", f"{s['regret_exact_rate']*100:.1f}")
+    want("cp lift mean", f4(s["lift_vs_base_mean"]))
+    want("cp oracle lift", f4(s["oracle_lift_vs_base_mean"]))
+    want("cp realize ratio", f"{s['coord_gain_realized_ratio']*100:.1f}")
+    sw_v, sw_s = sweep["agg"]["value"], sweep["agg"]["score"]
+    want("cp sweep value regret", f4(sw_v["regret_mean"]))
+    want("cp sweep value regret std", f4(sw_v["regret_mean_std"]))
+    want("cp sweep score regret", f4(sw_s["regret_mean"]))
+    want("cp sweep score regret std", f4(sw_s["regret_mean_std"]))
+    want("cp sweep value realize", f"{sw_v['realize_ratio']*100:.1f}")
+    want("cp sweep score realize", f"{sw_s['realize_ratio']*100:.1f}")
+    # LOSO 逐折 regret (meta.folds eval_summary) 与 loso JSON 逐折一致 (双源校验)
+    for i, f in enumerate(cpm["folds"]):
+        lf = loso["folds"][i]
+        assert f["heldout_seed_offset"] == lf["heldout_seed_offset"]
+        assert abs(f["eval_summary"]["regret_mean"]
+                   - round(sum(lf["eval"]["regret"]) / len(lf["eval"]["regret"]), 4)) < 1e-9
+    want("cp n_contexts", str(loso["n_contexts"]))
 
     # ---- 版本/日期 ----
     want("版本 v3.0", "v3.0")

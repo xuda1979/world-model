@@ -1273,3 +1273,9 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 - 提交 f3950ff (数据集 v2, 7 文件) + 798ffbd (API 空 ep_id 422 + 契约/资产完整性
   5 项守护测试); 验收: pytest 13 passed, probe 31/31 PASS。
 - 遗留: 逐小区策略蒸馏 (coord policy) 与动态时序协同 MDP 仍为下阶段。
+
+## 会话 29 (2026-11-09, round 177): 逐小区协同策略蒸馏 (根账本镜像)
+- coord policy: 61.4 万参数双头 MLP, LOSO 实现率 96.3% (regret 0.1279, 精确命中 60%);
+  部署头 = 值头 (10-seed sweep 10/10 全胜)。
+- 报告 7.5 节 + probe 47/47 + pytest 13 passed。
+- 详见根账本会话 29。

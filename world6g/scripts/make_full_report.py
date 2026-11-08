@@ -145,6 +145,13 @@ cc_policy = load(DOCS / "closedloop" / "closedloop_calib_policy.json")
 coord_rep = load(DOCS / "campus" / "coord_action_report.json")
 coord_rb = load(ROOT / "datalake" / "generated" / "coord_seed_robustness.json")
 
+# ---- 逐小区协同策略蒸馏 (round 177) ----
+coord_pol_meta = load(ROOT / "models" / "coord_policy_meta.json")
+coord_pol_loso = load(ROOT / "datalake" / "generated" / "coord_policy_loso.json")
+coord_pol_sweep = load(ROOT / "datalake" / "generated" / "coord_policy_head_sweep.json")
+cps = coord_pol_meta["loso_summary"]
+cp_sw_s, cp_sw_v = coord_pol_sweep["agg"]["score"], coord_pol_sweep["agg"]["value"]
+
 ta = results["task_a"]
 tb = results["task_b"]
 tc = results["task_c"]
@@ -628,6 +635,50 @@ para(doc,
      "城区/郊区以全局动作 (+6,+6,+6) 为主 (联合==全局 80%), 偶有微弱协同增益 (≤+0.017/+0.132)。"
      "含义: 全局动作模型 (pmax_scale 单标量) 覆盖不了逐小区联合优化, 该数据集为后续 per-cell 协同策略 "
      "提供 3125 条同根监督样本 (含逐小区特征 sinr_c0-2 / n_ue_c0-2)。", size=10)
+
+# ---- 7.5 逐小区协同策略蒸馏 (coord policy) ----
+heading(doc, "7.5 逐小区协同策略蒸馏 (coord policy)", 2)
+para(doc,
+     "v2 数据集只是『协同有收益』的存在性证明; 要在线用起来, 需要把 125 组合枚举蒸馏成 "
+     "一个可部署的联合决策模型。scripts/train_coord_policy.py 在 v2 数据集上训练 "
+     f"coord policy (models/coord_policy.pt, {coord_pol_meta['params']:,} 参数): "
+     "输入决策上下文 (动作前可知, 无泄漏: 基线 (0,0,0) 行的逐小区特征 "
+     "sinr_c0-2 / n_ue_c0-2 + 场景 one-hot, log1p 压缩 UE 数), 网络为 "
+     "[ctx + 3×5 动作 one-hot + 动作嵌入] → 512³ MLP 双头: score 头 (125 组合 softmax) "
+     "与值头 (逐组合 obj 预测); 训练目标 = 软分布匹配 q*(a|ctx) ∝ exp(obj/τ) "
+     "(τ=0.5, 125 组合密集监督) + 值蒸馏 (obj 标准化域 smooth L1, 权重 0.5)。")
+para(doc,
+     "泛化评测协议: leave-one-seed-out (LOSO) —— 每折留出 1 个 seed 的 5 场景 × 125 组合 "
+     "(625 行), 用其余 4 seeds 训练, 5 折轮转; 指标为留出上下文上推荐组合的真实 "
+     "obj 的 regret (联合最优 − 推荐) 与相对基线 (0,0,0) 的提升。部署决策头 "
+     "(值头 vs score 头) 的选型不依赖单次 25 上下文结果: scripts/sweep_coord_policy.py "
+     f"以 10 个训练 seed 重复 LOSO, 值头 10/10 全胜 (regret {fmt(cp_sw_v['regret_mean'], 4)}±"
+     f"{fmt(cp_sw_v['regret_mean_std'], 4)} vs score 头 {fmt(cp_sw_s['regret_mean'], 4)}±"
+     f"{fmt(cp_sw_s['regret_mean_std'], 4)}, 协同增益实现率 {pct(cp_sw_v['realize_ratio'])}% vs "
+     f"{pct(cp_sw_s['realize_ratio'])}%), 故部署规则 = 值头 argmax (score 头保留对照)。")
+_rows_cp = []
+for f in coord_pol_meta["folds"]:
+    es = f["eval_summary"]
+    _rows_cp.append([
+        f"+{f['heldout_seed_offset']}",
+        str(f["n_holdout_ctx"]),
+        fmt(es["regret_mean"], 4),
+        fmt(es["lift_vs_base_mean"], 4),
+        pct(f["eval_summary"].get("head_dist", 0), 0) + "%",
+    ])
+make_table(doc,
+    ["留出 seed 偏移", "留出上下文数", "regret mean", "lift_vs_base mean", "头间不一致率"],
+    _rows_cp, widths=[3.2, 3.2, 3.0, 3.4, 3.2])
+para(doc,
+     f"LOSO 汇总 (coord_policy_loso.json): regret mean {fmt(cps['regret_mean'], 4)} "
+     f"(中位数 {fmt(cps['regret_p50'], 4)}, 最大 {fmt(cps['regret_max'], 4)}, "
+     f"精确命中最优组合率 {pct(cps['regret_exact_rate'])}%) — 即 25 个未见 seed 的上下文中 "
+     f"{pct(cps['regret_exact_rate'], 0)}% 一步推荐出与 125 组合枚举完全相同的最优组合; "
+     f"相对基线提升 +{fmt(cps['lift_vs_base_mean'], 4)} (oracle +"
+     f"{fmt(cps['oracle_lift_vs_base_mean'], 4)}), 协同增益实现率 "
+     f"{pct(cps['coord_gain_realized_ratio'])}%。结论: 逐小区联合决策可以 61.4 万参数 "
+     "单前馈网络离线蒸馏, 在未见 seed 上实现近全部枚举收益, 为全局动作模型 "
+     "(7.2-7.3 节) 覆盖不了的小区级差异提供可部署的第三类动作模型。", size=10)
 
 # ===== 8. 复核与负控制 =====
 heading(doc, "8. 独立复核与负控制验证 (2026-11-06)", 1)
