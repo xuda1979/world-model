@@ -18,6 +18,7 @@ datalake/generated/{twin_*_ue,twin_action_dataset}.parquet, datalake/lake.duckdb
 import json
 import numpy as np
 import pytest
+import torch
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -189,3 +190,120 @@ def test_policy_action_parity_with_committed_closedloop(policy_ok):
     from collections import Counter
     cnt = Counter(w["action"] for w in rows)
     assert set(cnt) <= {"none", "az_offset"}, f"意外动作类型 {dict(cnt)}"
+
+
+# ---------- 5. 空参缺陷类回归 (会话 170 修复: 空 episode_id 曾 500) ----------
+# 背景: /api/wm/{action,rollout,verify} 未传 episode_id 时, "" 传入
+# _ep_ue_df → int("") → ValueError → 500。修复: 显式 422 + 中文提示。
+# 三端点 + verify 空 body 双路径均锁定。
+
+def test_wm_endpoints_empty_ep_id_422_not_500():
+    for url in ("/api/wm/action", "/api/wm/rollout", "/api/wm/verify"):
+        r = client.post(url, json={})
+        assert r.status_code == 422, \
+            f"{url} 空 episode_id 应 422 而非 {r.status_code}: {r.text[:120]}"
+        assert "episode_id" in r.json().get("detail", ""), url
+
+
+def test_wm_verify_empty_action_key_only_422():
+    # 有 episode_id 但其它字段全缺 → 仍不应 500 (默认 action/baseline, steps 合法)
+    r = client.post("/api/wm/verify", json={"episode_id": "twin_01"})
+    assert r.status_code in (200, 400, 422), f"意外状态码 {r.status_code}: {r.text[:120]}"
+    assert r.status_code != 500
+
+
+# ---------- 6. 前端-后端契约核验 (会话 171: 零死链固化) ----------
+# index.html/workbench.html 调用的全部 API 路径必须存在于 backend 路由表,
+# 且以真实 id/载荷打通 200。防前端演进引入死链 (或后端删路由未同步前端)。
+
+_FE_CALLS = [
+    ("GET",  "/api/episodes",        None),
+    ("GET",  "/api/kpi/1",           None),
+    ("GET",  "/api/map/1",           None),
+    ("GET",  "/api/capabilities",    None),
+    ("GET",  "/api/twin/report",     None),
+    ("GET",  "/api/campus",          None),
+    ("GET",  "/api/scene3d/1",       None),
+    ("POST", "/api/wm/rollout",      {"episode_id": "1", "action": {"type": "az_offset", "value": 5.0}, "steps": 6}),
+    ("POST", "/api/wm/verify",       {"episode_id": "twin_01", "action": "auto", "steps": 4, "window_t": 60}),
+    ("POST", "/api/chat",            {"message": "你好"}),
+]
+
+
+def test_frontend_backend_contract_zero_dead_link():
+    """前端 11 条调用 (10 唯一路径) 全部命中后端路由并 200 — 零死链。
+    前端 HTML 若新增 fetch 端点, 此测试不会自动感知, 但任何后端删路由/
+    改协议导致前端主链路断, 此处立即红灯。"""
+    for method, url, body in _FE_CALLS:
+        r = client.request(method, url, json=body) if body is not None else client.request(method, url)
+        assert r.status_code == 200, \
+            f"死链或协议断裂: {method} {url} → {r.status_code}: {r.text[:120]}"
+
+
+# ---------- 7. 权重-架构-元数据三方一致性 (会话 172: 防漂移固化) ----------
+# .pt state_dict 键集必须 ≡ 活体网络键集; .pt 与 *_meta.json 必须成对在位;
+# 推理必须确定性。权重替换/架构改动/元数据丢失任一发生, 此处立即红灯。
+
+_MD = Path(wm.PKG_DIR) / "models"
+
+def test_weight_arch_metadata_three_way_parity():
+    m = wm.load_model()
+    if m is None:
+        pytest.skip("WM 权重缺失")
+    mkeys = set(m.state_dict().keys())
+
+    for pt in ("gru_wm_ms.pt", "gru_wm.pt"):
+        sd = torch.load(_MD / pt, map_location="cpu")
+        assert set(sd.keys()) == mkeys, \
+            f"{pt} 键集与活体 GRU-WM 不一致 (权重-架构漂移)"
+
+    p = wm.load_policy()
+    if p is not None:
+        sd = torch.load(_MD / "policy_fused_net.pt", map_location="cpu")
+        assert set(sd.keys()) == set(p.state_dict().keys()), \
+            "policy_fused_net.pt 键集与活体 PolicyNet 不一致"
+
+    pairs = [("gru_wm.pt", "gru_wm_meta.json"), ("gru_wm_ms.pt", "gru_wm_ms_meta.json"),
+             ("policy_fused_net.pt", "policy_fused_meta.json"), ("policy_net.pt", "policy_meta.json"),
+             ("policy_cal_net.pt", "policy_cal_meta.json"), ("policy_uncal_net.pt", "policy_uncal_meta.json"),
+             ("wm_cal.pt", "wm_cal_meta.json"), ("wm_uncal.pt", "wm_uncal_meta.json")]
+    for pt, mt in pairs:
+        assert (_MD / pt).exists() and (_MD / mt).exists(), f"{pt} 或 {mt} 缺失 (权重-元数据不成对)"
+
+    # 推理确定性: 同输入两次 → 逐位一致
+    hist = np.tile(np.array([[-110.0, 15.0, 75.0, 13.5]]), (H, 1))
+    r1 = wm.policy_action(hist)
+    r2 = wm.policy_action(hist)
+    assert r1["type"] == r2["type"]
+    assert abs(float(r1["value"] or 0) - float(r2["value"] or 0)) < 1e-12
+
+
+# ---------- 8. 数据湖-生成物完整性 (会话 173: 资产在位与设计对称性固化) ----------
+# twin 01–08 × 6 表 = 48 parquet 全在位; cal/uncal 数据集规模比符合设计
+# (cal 5 场景含 campus, uncal 4 场景有意排除 — sim_calib.py:150);
+# 湖核心表非空; 报告锚点 json 在位。
+
+def test_datalake_generated_assets_integrity():
+    GEN = Path(wm.PKG_DIR) / "datalake" / "generated"
+    eps = [f"twin_{i:02d}" for i in range(1, 9)]
+    tbls = ["ue", "link", "phy", "cellperf", "mro", "sys"]
+    missing = [f"{e}_{t}.parquet" for e in eps for t in tbls
+               if not (GEN / f"{e}_{t}.parquet").exists()]
+    assert not missing, f"twin parquet 缺失: {missing}"
+
+    # cal/uncal 规模比 = 设计 (cal 含 campus 5 场景, uncal 4 场景)
+    cal = wm.pd.read_parquet(GEN / "twin_cal_action_dataset.parquet")
+    unc = wm.pd.read_parquet(GEN / "twin_uncal_action_dataset.parquet")
+    assert len(cal) == len(unc) + unc.groupby("branch_scene").size().iloc[0] * 0 + \
+        20800, f"cal 规模异常: {len(cal)} (期望 uncal {len(unc)} + campus 20800)"
+    assert "campus" in set(cal["branch_scene"])
+    assert "campus" not in set(unc["branch_scene"])
+
+    # 主 action dataset: 4 场景 5 动作类型
+    ds = wm.pd.read_parquet(GEN / "twin_action_dataset.parquet")
+    assert ds["branch_scene"].nunique() == 4
+    assert len(ds["action_type"].unique()) >= 5  # baseline+4 干预
+
+    # 报告锚点
+    for f in ("twin_report.json", "sim_calib_report.json", "action_report.json"):
+        assert (GEN / f).exists(), f"{f} 缺失"

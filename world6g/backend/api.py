@@ -361,7 +361,9 @@ def capabilities():
 async def wm_rollout(req: dict):
     """世界模型多步 rollout: {episode_id, ue?, action: {type, value}, steps}
     返回 baseline 与 action 两条预测轨, 供前端对照"""
-    ep_id = str(req.get("episode_id", ""))
+    ep_id = str(req.get("episode_id", "")).strip()
+    if not ep_id:
+        raise HTTPException(422, "episode_id 必填 (twin_NN 或数据湖 episode 编号)")
     action = req.get("action") or {"type": "baseline", "value": 0}
     steps = int(min(max(int(req.get("steps", 40)), 1), 200))
     try:
@@ -452,7 +454,9 @@ async def wm_verify(req: dict):
     action="auto" → 动作模型 (PolicyNet-Fused) 一步决策该时刻动作 (闭环决策演示).
     """
     import time as _time
-    ep_id = str(req.get("episode_id", ""))
+    ep_id = str(req.get("episode_id", "")).strip()
+    if not ep_id:
+        raise HTTPException(422, "episode_id 必填 (twin_NN 或数据湖 episode 编号)")
     action = req.get("action") or {"type": "baseline", "value": 0}
     steps = int(min(max(int(req.get("steps", 80)), 1), 160))
     t_w = int(req.get("window_t", -1))          # twin_ep 的时间索引窗 (t+1≥hist 才可预测)
@@ -547,7 +551,9 @@ async def wm_action(req: dict):
     wm = importlib.import_module("twm_serve")
     if wm.load_policy() is None:
         raise HTTPException(503, "动作模型不可用 (policy_fused_net.pt 未找到或加载失败)")
-    ep_id = str(req.get("episode_id", ""))
+    ep_id = str(req.get("episode_id", "")).strip()
+    if not ep_id:
+        raise HTTPException(422, "episode_id 必填 (twin_NN 或数据湖 episode 编号)")
     df = _ep_ue_df(ep_id)
     if df.empty:
         raise HTTPException(404, f"episode {ep_id} not found")
