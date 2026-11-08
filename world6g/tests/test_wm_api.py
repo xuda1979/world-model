@@ -307,3 +307,112 @@ def test_datalake_generated_assets_integrity():
     # 报告锚点
     for f in ("twin_report.json", "sim_calib_report.json", "action_report.json"):
         assert (GEN / f).exists(), f"{f} 缺失"
+
+
+# ================= 逐小区协同策略服务化 (coord policy, 会话 30) =================
+
+_COORD_LOSO = wm.Path(wm.GEN_DIR) / "coord_policy_loso.json"
+_COORD_DATA = wm.Path(wm.GEN_DIR) / "coord_action_dataset.parquet"
+
+
+@pytest.fixture(scope="module")
+def coord_ctx():
+    """训练时见过的基线上下文 (从 coord_action_dataset.parquet 的 (0,0,0) 行取),
+    与 LOSO 评测的决策特征构造完全一致 (无泄漏)."""
+    df = wm.pd.read_parquet(_COORD_DATA)
+    base = df[df.combo == "+0,+0,+0"]
+    out = []
+    for _, r in base.iterrows():
+        out.append({
+            "scene": r.scene,
+            "sinr_c": [float(r.sinr_c0), float(r.sinr_c1), float(r.sinr_c2)],
+            "n_ue_c": [int(r.n_ue_c0), int(r.n_ue_c1), int(r.n_ue_c2)],
+            "seed": int(r.seed),
+        })
+    return out
+
+
+def test_coord_info_available():
+    r = client.get("/api/coord/info")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["available"] is True
+    assert d["deploy_rule"] == "value-head argmax"
+    assert d["params"] > 600_000          # 61.4 万参数双头 MLP
+    assert d["action_space"]["n_combos"] == 125
+    assert 0.90 <= d["loso"]["coord_gain_realized_ratio"] <= 0.99  # 0.9631
+
+
+def test_coord_action_on_train_ctx_matches_serving_module(coord_ctx):
+    """端点对 25 个训练上下文: (1) 推荐组合必须与服务模块 coord_serve 逐位一致;
+    (2) 相对 oracle 的相对 regret 均值/上限锁死 (部署头固化, 防再训练漂移)."""
+    import coord_serve as cs
+    loso = json.loads(_COORD_LOSO.read_text(encoding="utf-8"))
+    assert loso["summary"]["coord_gain_realized_ratio"] > 0.96
+    df = wm.pd.read_parquet(_COORD_DATA)
+    regs = []
+    for c in coord_ctx:
+        r = client.post("/api/coord/action", json=c)
+        assert r.status_code == 200, r.text[:200]
+        d = r.json()
+        # 与服务模块对拍
+        rec = cs.coord_policy_action(c["sinr_c"], c["n_ue_c"], c["scene"])
+        assert d["action"]["combo"] == rec["action"]["combo"], \
+            f"{c}: 端点 {d['action']['combo']} != 模块 {rec['action']['combo']}"
+        # 结构
+        assert d["deploy_rule"].startswith("value-head argmax")  # 值头 argmax 部署
+        assert len(d["top_k"]) == 5 and d["top_k"][0]["combo"] == d["action"]["combo"]
+        assert d["policy"]["loso"]["coord_gain_realized_ratio"] > 0.96
+        # 相对 oracle regret
+        sub = df[(df.scene == c["scene"]) & (df.seed == c["seed"])]
+        best = sub.obj.max()
+        got = sub[sub.combo == d["action"]["combo"]].obj.iloc[0]
+        regs.append((best - got) / max(abs(best), 1e-9))
+    assert np.mean(regs) < 0.01   # 训练上下文近似最优 (实测 mean≈0.0032)
+    assert max(regs) < 0.05       # 最差上下文 regret 上限 (实测 ≈0.0304)
+    assert np.mean([x < 1e-9 for x in regs]) >= 0.60  # 精确命中率 ≥ LOSO 60%
+
+
+@pytest.mark.parametrize("payload, msg", [
+    ({"scene": "海底", "sinr_c": [1, 2, 3], "n_ue_c": [4, 5, 6]},
+     "scene 必须为"),
+    ({"scene": "城区", "sinr_c": [1, 2], "n_ue_c": [4, 5, 6]},
+     "各为 3 个"),
+    ({"scene": "城区", "sinr_c": [1, 2, 3], "n_ue_c": [4, 5]},
+     "各为 3 个"),
+    ({"scene": "城区", "sinr_c": "abc", "n_ue_c": [4, 5, 6]},
+     "各 3 个数值"),
+    ({"scene": "城区", "sinr_c": [1, 2, 3], "n_ue_c": [-4, 5, 6]},
+     "不能为负"),
+    ({"scene": "城区", "sinr_c": [999, 2, 3], "n_ue_c": [4, 5, 6]},
+     "量程"),
+    ({"scene": "城区", "sinr_c": [1, 2, 3], "n_ue_c": [4, 5, 9999]},
+     "量程"),
+    ({"action": "auto", "scene": "城区", "sinr_c": [1, 2, 3], "n_ue_c": [4, 5, 6]},
+     "coord 策略不支持 action='auto'"),
+    ({"scene": "城区", "n_ue_c": [4, 5, 6]}, "sinr_c / n_ue_c 必填"),
+])
+def test_coord_action_invalid_input_422(payload, msg):
+    r = client.post("/api/coord/action", json=payload)
+    assert r.status_code == 422, \
+        f"非法输入应 422 而非 {r.status_code}: {r.text[:120]}"
+    assert msg in r.json()["detail"], r.json()["detail"][:160]
+
+
+def test_coord_action_deterministic_same_input():
+    c = {"scene": "campus", "sinr_c": [10.0, 8.0, 12.0], "n_ue_c": [30, 20, 25]}
+    r1 = client.post("/api/coord/action", json=c).json()
+    r2 = client.post("/api/coord/action", json=c).json()
+    assert r1["action"]["combo"] == r2["action"]["combo"]
+    assert r1["top_k"] == r2["top_k"]  # 值序 top-k 逐位一致
+
+
+def test_coord_action_nan_sinr_422_raw_body():
+    """raw body 直发 NaN (Python json.loads 接受 NaN 字面量, 真实客户端可触发)
+    → 服务端 np.isfinite 防线必须挡住 (422 非 500)."""
+    raw = '{"scene": "城区", "sinr_c": [1.0, 2.0, NaN], "n_ue_c": [4, 5, 6]}'
+    r = client.post("/api/coord/action", content=raw,
+                    headers={"Content-Type": "application/json"})
+    assert r.status_code == 422, \
+        f"NaN sinr_c 应 422 而非 {r.status_code}: {r.text[:120]}"
+    assert "非有限值" in r.json()["detail"]

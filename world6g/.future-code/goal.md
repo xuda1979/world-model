@@ -1279,3 +1279,10 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   部署头 = 值头 (10-seed sweep 10/10 全胜)。
 - 报告 7.5 节 + probe 47/47 + pytest 13 passed。
 - 详见根账本会话 29。
+
+## 会话 30 (2026-11-09, round 178): coord policy 服务化 (根账本镜像)
+- coord_serve.py + POST /api/coord/action / GET /api/coord/info; 值头 argmax 在线推理,
+  输入校验 422 (scene 枚举/量程/NaN/raw NaN 字面量), action="auto" 拒绝。
+- 守护: pytest 13→26 passed (25 训练上下文端点⇄模块对拍, regret mean 0.0032/max 0.0304
+  锁死); probe 49/49 (cp serve 文案命中); 报告 7.5 节补服务化部署段, docx 重生成。
+- 详见根账本会话 30。

@@ -574,6 +574,56 @@ async def wm_action(req: dict):
     }
 
 
+# ================= 逐小区协同策略 (Coord Policy, 技术报告 §7.5) =================
+
+_COORD_SCENES = ("城区", "郊区", "低空", "机器人工厂", "campus")
+
+
+@app.post("/api/coord/action")
+async def coord_action(req: dict):
+    """逐小区协同策略一步决策: {scene, sinr_c: [3], n_ue_c: [3]}
+    值头 argmax 部署 (与 train_coord_policy.py / LOSO 评测一致),
+    返回推荐功率偏移 (p0,p1,p2) + 125 组合值序 top-k + 模型元信息.
+    """
+    if req.get("action") == "auto":
+        raise HTTPException(422, "coord 策略不支持 action='auto' (该入口属于 /api/wm/rollout);"
+                                 "请提供 {scene, sinr_c, n_ue_c}")
+    cs = importlib.import_module("coord_serve")
+    if cs.load_coord_policy() is None:
+        raise HTTPException(503, "协同策略不可用 (coord_policy.pt 未找到或加载失败)")
+    scene = str(req.get("scene", "")).strip()
+    if scene not in _COORD_SCENES:
+        raise HTTPException(422, f"scene 必须为 {_COORD_SCENES} 之一, 收到: {scene!r}")
+    try:
+        sinr_c = [float(x) for x in req["sinr_c"]]
+        n_ue_c = [int(x) for x in req["n_ue_c"]]
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(422, "sinr_c / n_ue_c 必填且为各 3 个数值的列表")
+    if len(sinr_c) != 3 or len(n_ue_c) != 3:
+        raise HTTPException(422, "sinr_c / n_ue_c 必须各为 3 个小区的值")
+    if any(not np.isfinite(v) for v in sinr_c):
+        raise HTTPException(422, "sinr_c 含非有限值 (NaN/Inf)")
+    if any(n < 0 for n in n_ue_c):
+        raise HTTPException(422, "n_ue_c 不能为负")
+    if not all(-30.0 <= v <= 50.0 for v in sinr_c):
+        raise HTTPException(422, "sinr_c 超出合理量程 [-30, 50] dB (校准数据范围)")
+    if any(n > 500 for n in n_ue_c):
+        raise HTTPException(422, "n_ue_c 超出合理量程 [0, 500]")
+    try:
+        rec = cs.coord_policy_action(sinr_c, n_ue_c, scene)
+    except Exception as e:
+        raise HTTPException(500, f"coord 推理失败: {e}")
+    rec.update({"policy": cs.coord_policy_info(), "scene": scene})
+    return rec
+
+
+@app.get("/api/coord/info")
+def coord_info():
+    """协同策略模型元信息 (参数量/动作空间/LOSO 摘要), 不可用时 available=false"""
+    cs = importlib.import_module("coord_serve")
+    return cs.coord_policy_info()
+
+
 # ================= 园区地图 (中国移动信息港·昌平) =================
 
 @app.get("/api/campus")

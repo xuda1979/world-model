@@ -144,6 +144,9 @@ def main() -> int:
         assert abs(f["eval_summary"]["regret_mean"]
                    - round(sum(lf["eval"]["regret"]) / len(lf["eval"]["regret"]), 4)) < 1e-9
     want("cp n_contexts", str(loso["n_contexts"]))
+    # 服务化部署段 (coord_serve + /api/coord/action, 会话 30)
+    want("cp serve endpoint", "/api/coord/action")
+    want("cp serve module", "coord_serve.py")
 
     # ---- 版本/日期 ----
     want("版本 v3.0", "v3.0")

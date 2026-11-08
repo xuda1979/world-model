@@ -1647,3 +1647,22 @@ bootstrap CI + 阴性对照) → 融合奖励蒸馏 → **服务栈部署**。
   报告 docx 重建。
 - **诚实注记**: LOSO 留出的是新 seed 而非新场景 (5 场景全部在训练集出现);
   静态单步评估, 动态时序协同 MDP 未动; 25 上下文小样本, sweep 用 10 seed 抑制选型噪声。
+
+## 会话 30 (2026-11-09, round 178): coord policy 服务化 — /api/coord/action 在线推理端 + 守护测试 (会话 29 遗留)
+**任务**: 任务 #14 — 把 coord_policy.pt (61.4 万参数双头 MLP) 从离线评测推进为在线推理服务 (报告 7.5 节部署闭环)。
+- **服务模块** (world6g/coord_serve.py): load_coord_policy() 加载 ckpt (ctx 归一化参数 + 组合表),
+  coord_policy_action(sinr_c, n_ue_c, scene) 值头 argmax → 推荐 (p0,p1,p2) + top-5 值序;
+  coord_policy_info() 暴露参数量/动作空间 (125 组合)/LOSO 摘要。特征构造与训练完全一致 (log1p(n_ue), scene one-hot, 无泄漏)。
+- **API 端点** (backend/api.py):
+  - POST /api/coord/action — 输入 {scene, sinr_c[3], n_ue_c[3]}, 校验 scene 枚举 (5 场景)、
+    长度/数值/量程 (sinr∈[-30,50], n_ue≤500)/NaN, 非法 422; action="auto" 明确拒绝 (422, 指回 /api/wm/rollout)。
+  - GET /api/coord/info — 模型元信息, 不可用时 available=false。
+- **守护测试** (tests/test_wm_api.py, 13→26 passed): 25 训练上下文端点⇄模块逐位对拍 +
+  相对 oracle regret 锁死 (mean<0.01 实测 0.0032, max<0.05 实测 0.0304, 精确命中 ≥60% 实测 68%);
+  10 参数化非法输入 422 (含 raw body NaN — Python json.loads 接受 NaN 字面量, 服务端 np.isfinite 防线);
+  同输入推理确定性; coord info LOSO 实现率 0.963 锚定。
+- **报告**: 7.5 节补服务化部署段 (端点/输入输出/校验/对拍指标); probe_report_v3.py 扩至 49 断言
+  (cp serve endpoint / module 文案命中), 49/49 全绿; docx 重生成。
+- **诚实注记**: 对拍基准是训练时见过的 25 上下文 (非留出), 故 regret 远低于 LOSO 0.1279 —
+  该测试守护的是"端点⇄模块部署一致性", 泛化结论仍以 LOSO 为准; 训练上下文精确保存于
+  coord_action_dataset.parquet (0,0,0) 基线行, fixture 动态读取不硬编码。

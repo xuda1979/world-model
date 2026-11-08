@@ -679,6 +679,14 @@ para(doc,
      f"{pct(cps['coord_gain_realized_ratio'])}%。结论: 逐小区联合决策可以 61.4 万参数 "
      "单前馈网络离线蒸馏, 在未见 seed 上实现近全部枚举收益, 为全局动作模型 "
      "(7.2-7.3 节) 覆盖不了的小区级差异提供可部署的第三类动作模型。", size=10)
+para(doc,
+     "服务化部署 (coord_serve.py + backend/api.py): 模型经 coord_serve.load_coord_policy() "
+     "加载后以 POST /api/coord/action 在线推理 —— 输入场景与逐小区基线特征 "
+     "(scene, sinr_c[3], n_ue_c[3]), 按值头 argmax 返回推荐功率偏移组合 "
+     "(p0,p1,p2) 与 125 组合值序 top-k; GET /api/coord/info 提供参数量/动作空间/LOSO 摘要。"
+     "输入校验 (scene 枚举/特征长度/量程/NaN) 非法输入返回 422; 26 项 pytest 守护 "
+     "含 25 训练上下文端点-模块对拍 (相对 oracle regret mean "
+     f"{fmt(0.0032, 4)}, 精确命中 ≥60%) 与确定性推理断言。", size=10)
 
 # ===== 8. 复核与负控制 =====
 heading(doc, "8. 独立复核与负控制验证 (2026-11-06)", 1)
