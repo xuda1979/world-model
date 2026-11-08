@@ -1,0 +1,85 @@
+{
+ "n_windows": 480,
+ "per_ue_windows": 4,
+ "window_step_ms": 50.0,
+ "holdout_region": "t in [160, T-41] steps (>=8000ms held-out)",
+ "scenes": [
+  "城区",
+  "郊区",
+  "低空",
+  "机器人工厂",
+  "campus"
+ ],
+ "rmse_h1": {
+  "cal": {
+   "服务小区RSRP(dBm)": 1.456,
+   "服务小区SINR(dB)": 1.0783,
+   "下行速率(Mbps)": 14.3714,
+   "CQI": 0.3594,
+   "mean_all": 4.3163
+  },
+  "uncal": {
+   "服务小区RSRP(dBm)": 2.2569,
+   "服务小区SINR(dB)": 2.2318,
+   "下行速率(Mbps)": 13.5598,
+   "CQI": 0.3551,
+   "mean_all": 4.6009
+  }
+ },
+ "rmse_h8": {
+  "cal": {
+   "服务小区RSRP(dBm)": 3.4572,
+   "服务小区SINR(dB)": 2.2368,
+   "下行速率(Mbps)": 15.9576,
+   "CQI": 0.6598,
+   "mean_all": 5.5779
+  },
+  "uncal": {
+   "服务小区RSRP(dBm)": 3.4028,
+   "服务小区SINR(dB)": 3.2978,
+   "下行速率(Mbps)": 20.809,
+   "CQI": 0.6343,
+   "mean_all": 7.036
+  }
+ },
+ "rmse_h40": {
+  "cal": {
+   "服务小区RSRP(dBm)": 7.5391,
+   "服务小区SINR(dB)": 4.2311,
+   "下行速率(Mbps)": 19.0391,
+   "CQI": 1.1042,
+   "mean_all": 7.9783
+  },
+  "uncal": {
+   "服务小区RSRP(dBm)": 6.8989,
+   "服务小区SINR(dB)": 5.9625,
+   "下行速率(Mbps)": 36.5869,
+   "CQI": 0.9381,
+   "mean_all": 12.5966
+  }
+ },
+ "cal_gain_over_uncal": {
+  "rmse_h1": {
+   "服务小区RSRP(dBm)": 0.8009,
+   "服务小区SINR(dB)": 1.1535,
+   "下行速率(Mbps)": -0.8116,
+   "CQI": -0.0043,
+   "mean_all": 0.2846
+  },
+  "rmse_h8": {
+   "服务小区RSRP(dBm)": -0.0544,
+   "服务小区SINR(dB)": 1.061,
+   "下行速率(Mbps)": 4.8514,
+   "CQI": -0.0255,
+   "mean_all": 1.4581
+  },
+  "rmse_h40": {
+   "服务小区RSRP(dBm)": -0.6402,
+   "服务小区SINR(dB)": 1.7314,
+   "下行速率(Mbps)": 17.5478,
+   "CQI": -0.1661,
+   "mean_all": 4.6183
+  }
+ },
+ "note": "cal-twin held-out 孪生窗上 wm_cal vs wm_uncal 的 h∈{1,8,40} 开环 rollout RMSE (训练域内自洽评测; 与 wm_calib_eval.json 的真实站跨域评测互补). 增益=uncal−cal, 正=校准 WM 更强."
+}

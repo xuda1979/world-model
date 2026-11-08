@@ -1,0 +1,44 @@
+{
+ "tag": "uncal",
+ "data": "twin_uncal_action_dataset.parquet",
+ "scenes": [
+  "城区",
+  "郊区",
+  "低空",
+  "机器人工厂"
+ ],
+ "n_windows": 1664,
+ "state_cols": [
+  "服务小区RSRP(dBm)",
+  "服务小区SINR(dB)",
+  "下行速率(Mbps)",
+  "CQI"
+ ],
+ "action_types": [
+  "baseline",
+  "pmax_scale",
+  "prb_scale",
+  "az_offset",
+  "ho_offset"
+ ],
+ "hist": 8,
+ "mu": [
+  -112.25143432617188,
+  17.6279354095459,
+  140.33819580078125,
+  14.004010200500488
+ ],
+ "sd": [
+  11.998220443725586,
+  11.643067359924316,
+  85.35456085205078,
+  2.6806883811950684
+ ],
+ "a_mu": 0.3506348729133606,
+ "a_sd": 10.48847770690918,
+ "seed": 42,
+ "epochs": 40,
+ "params": 18772,
+ "trained_at": "2026-11-07T18:00:07",
+ "calibrated": false
+}
