@@ -1309,3 +1309,17 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 - 7 锚点 MD5 全 MATCH 零漂移; 双绿线 26 passed (4.96s) + probe 49/49。
 - Status 声明在案未漂移 (根账本头部 + 两侧 checkbox); 守护轮 174-180 连续七轮全绿。
 - 详见根账本会话 34。
+
+## 会话 35 (2026-11-09, M11 时序协同里程碑开工): 仿真器时序化原语落地并入库
+- **operator 新约束入账**: git add/commit/push 即时完成 (每里程碑成果落库即推送, 不积压)。
+- **twin/calibrated.py**: TinyTwin 时序化 — tick_ms 构造参数 / _init_tick_state /
+  _step_tick 原语 / cell_tx_scale_db 逐 tick 时变 per-cell 功率; tick_ms=None 冻结
+  路径逐位保留 (历史输出哈希不变)。
+- **scripts/gen_coord_seqs.py**: 时序协同 MDP 数据集生成器 (200ms tick × 1s 决策窗 ×
+  10s episode); 产出 coord_seq_dataset.parquet (3000 行 = 5 场景 × 5 seeds × 12 eps
+  × 10 决策点) + coord_seq_static_ref.json (同根恒零参考 + 静态恒定动作对照)。
+- **tests/test_twin_temporal.py**: 21 项守护 (冻结路径逐位 / tick50≡frozen / 时变功率
+  因果性 / 列集稳定) — 全套件 47 passed (repo venv)。
+- **commit 8bc94ca 已推送** (31ec7ab..8bc94ca, 含积压 22 提交一次清空)。
+- **下步 (M11 余项)**: 时序策略训练 (时序世界模型 → 规划 oracle → BC 蒸馏) + 闭环
+  LOSO (对比 恒零/随机/最优恒定/仿真真值贪心) + 报告 7.6 节 + probe/测试扩展。
