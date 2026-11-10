@@ -1666,3 +1666,62 @@ bootstrap CI + 阴性对照) → 融合奖励蒸馏 → **服务栈部署**。
 - **诚实注记**: 对拍基准是训练时见过的 25 上下文 (非留出), 故 regret 远低于 LOSO 0.1279 —
   该测试守护的是"端点⇄模块部署一致性", 泛化结论仍以 LOSO 为准; 训练上下文精确保存于
   coord_action_dataset.parquet (0,0,0) 基线行, fixture 动态读取不硬编码。
+
+## 会话 31 (2026-11-09, round 177 宿主守护轮): 冻结资产 MD5 全锚点复核 + 陈旧后台任务甄别
+**任务**: 无新代码任务 — round 177 宿主触发后对 10/10 完成态做第七轮守护 + 处置一条陈旧后台任务通知。
+- **陈旧任务甄别**: byad1mxi1 (后台运行 coord_actions) 在启动瞬间即死于 coord_actions.py
+  当时的中间态语法错误 (N_SEEDS global 声明序), 从未产出数据; 其目标产物
+  coord_seed_robustness.json (25 行) 早在会话 28 已生成并提交, 会话 29-30 报告引用的正是
+  已提交文件, 无任何数据缺口。当前 coord_actions.py 编译通过。
+- **冻结资产 MD5 复核** (5 锚点 vs 账本, 2026-11-09 02:06): sim_calib_report 612b665e /
+  wm_cal.pt 18ff1218 / policy_cal_net ef7e0669 / closedloop_fused 6d3b9cfc /
+  main.pdf dc967b8c — 全部逐位 MATCH; 报告 docx 磁盘 vs HEAD 逐位相同 (0cafbfc7);
+  coord_serve.py 磁盘 vs HEAD 逐位相同 (75b7e961)。
+- **在线推理冒烟** (模块级, 服务未启动属正常离线态): coord_serve.coord_policy_info()
+  available=true, LOSO 实现率 0.9631 / regret 0.1279 与权威 JSON 一致; campus 上下文
+  (sinr 12/10.5/9 dB, n_ue 40/55/30) 实推 +6,+6,+6 — 与训练数据 campus 全局最优组合一致。
+- **双绿线新鲜复跑**: pytest 26 passed (5.52s) + probe 49/49 PASS。
+- **结论**: 目标保持 10/10 完成且独立验证; 唯一下阶段候选 (非本轮范围, 账本已注记):
+  动态时序协同 MDP。无外部门阻塞。
+
+## 会话 32 (2026-11-09, round 178 宿主守护轮): 第八轮守护 — 7 锚点全 MATCH 零漂移
+**任务**: 无新代码任务 — round 178 宿主触发后的例行守护复核。
+- **7 锚点 MD5** (2026-11-09): 5 冻结资产 (612b665e/18ff1218/ef7e0669/6d3b9cfc/dc967b8c)
+  + 报告 docx (0cafbfc7) + coord_serve.py (75b7e961) — 全部与账本锚点逐位 MATCH, 零漂移。
+- **双绿线新鲜复跑**: pytest 26 passed (7.60s) + probe 49/49 PASS。
+- **门闸**: HEAD 6b15f76; 工作树仅双账本会话 31 编辑 (+23 行, 上轮已记录)。
+- **结论**: 10/10 完成且独立验证不变; 无外部门阻塞, 无新风险信号。
+
+## 会话 33 (2026-11-09, round 179 宿主守护轮): 第九轮守护 + 动态时序协同 MDP scoping 判定
+**任务**: 无新代码任务 — round 179 宿主触发后的守护复核 + 账本唯一注记的下阶段候选
+「动态时序协同 MDP」scoping (压缩前已读 coord_actions.py / calibrated.py 关键接口)。
+- **7 锚点 MD5** (2026-11-09): 全部与账本锚点逐位 MATCH (sim_calib 612b665e / wm_cal
+  18ff1218 / policy_cal_net ef7e0669 / closedloop_fused 6d3b9cfc / main.pdf dc967b8c /
+  报告 docx 0cafbfc7 / coord_serve 75b7e961), 零漂移。
+- **双绿线新鲜复跑**: pytest 26 passed (7.02s) + probe 49/49 PASS。
+- **门闸**: HEAD 6b15f76; 工作树仅含双账本会话 31/32 编辑 (未提交, 留给 operator)。
+- **动态时序协同 MDP scoping** (结论: 超出 ACTIVE OBJECTIVE, 不自行开工, 留档供
+  operator 决策):
+  - 现状: coord 数据集 (3125 行) 为静态单步 — 每 combo 独立整 episode、cell_tx_scale_db
+    恒定、决策上下文 = (0,0,0) 基线行特征 + 场景 one-hot。TinyTwin 已具备时序化仿真原语:
+    50ms UE tick (ue_ts=arange(0,ep_ms,50)), per-cell 功率偏移 hook cell_tx_scale_db[i],
+    L3 滤波 l3=0.75*l3+0.25*pwrs (τ≈150ms 收敛), A3 硬切换 (邻区滤波≥服务+ho_offset+Hys)。
+  - 实现所需: 新数据生成脚本 (跨 tick 时变 per-cell 功率决策序列, 状态须含 L3 滤波历史)、
+    上下文自适应时序策略训练、时序 LOSO regret 协议重设计、报告 7.6 节 + probe 断言扩展 +
+    守护测试扩展 — 规模相当于一个新里程碑周期。
+  - 判定: ACTIVE OBJECTIVE (校准仿真器 → 优秀 WM + 动作模型 + 中文技术报告) 已 10/10
+    完成且独立验证; 时序 MDP 是新研究维度而非当前目标的完成/改进路径, 宿主协议 (目标完成时
+    守护/验证并报告) 下不自行开新里程碑周期。
+- **结论**: 目标保持 10/10 完成且独立验证; 无外部门阻塞, 无新风险信号。
+
+## 会话 34 (2026-11-09 08:35, round 180 宿主守护轮): 第十轮守护 — 全绿零漂移, 状态与上轮零变化
+**任务**: 无新代码任务 — round 180 宿主触发后的例行守护复核。
+- **7 锚点 MD5** (2026-11-09 08:35): 全部与账本锚点逐位 MATCH (sim_calib 612b665e /
+  wm_cal 18ff1218 / policy_cal_net ef7e0669 / closedloop_fused 6d3b9cfc / main.pdf
+  dc967b8c / 报告 docx 0cafbfc7 / coord_serve 75b7e961), 零漂移。
+- **双绿线新鲜复跑**: pytest 26 passed (4.96s) + probe 49/49 PASS。
+- **Status 声明复核**: 根账本头部 Status: completed for operator REVIEW (第 4 行) +
+  两侧 checkbox "[x] Status: completed" 在案且未漂移; grep 全文无 Status: blocked。
+- **门闸**: HEAD 6b15f76; 工作树仅含双账本会话 31/32/33 编辑 (未提交, 留给 operator)。
+- **结论**: 10/10 完成且独立验证不变; 无外部门阻塞, 无新风险信号。守护轮 174-180 连续
+  七轮全绿, 唯一下阶段候选 (动态时序协同 MDP) scoping 已留档会话 33 供 operator 决策。

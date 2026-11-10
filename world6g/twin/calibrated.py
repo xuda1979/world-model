@@ -42,7 +42,8 @@ SCENE_PL_CAL = {"城区": 35.0, "郊区": 33.0, "低空": 38.0,
 class TinyTwin:
     """校准版孪生 (同原接口)"""
 
-    def __init__(self, scene, n_cell=3, n_ue=8, ep_s=10.0, seed=42, source="twin_cal"):
+    def __init__(self, scene, n_cell=3, n_ue=8, ep_s=10.0, seed=42,
+                 source="twin_cal", tick_ms=None):
         self.scene = scene
         self.n_cell = n_cell
         self.n_ue = n_ue
@@ -50,6 +51,10 @@ class TinyTwin:
         self.ep_ms = ep_s * 1000.0
         self.seed = seed
         self.source = source
+        # 时序化原语 (M11): tick_ms=None → 走冻结的 run() 路径 (逐位不变);
+        # tick_ms=int → run() 切 tick 推进 (时变功率动作可用 set_cell_tx_scale_db
+        # 逐 tick 变更, L3 滤波历史保持在 self._tick_l3)。
+        self.tick_ms = tick_ms
         self.rng = np.random.default_rng(seed)
         self.speed = SCENE_SPEED_CAL[scene]
 
@@ -206,6 +211,128 @@ class TinyTwin:
 
     # ---------------- 主仿真 ----------------
     def run(self) -> dict[str, pd.DataFrame]:
+        if self.tick_ms is None:
+            return self._run_frozen()
+        return self._run_tick()
+
+    def _tick_sig(self) -> float:
+        return {"城区": 9.0, "郊区": 9.0, "低空": 8.0, "机器人工厂": 8.5,
+                "campus": 9.0}[self.scene]
+
+    # ---- 时序化路径 (M11): tick 推进 + 时变功率 ----
+    def _init_tick_state(self):
+        """初始化 tick 状态 (位置/速度/阴影/L3/服务小区)。幂等: 重复调用重置。"""
+        rng = self.rng
+        nm, nc = self.n_ue, self.n_cell
+        sig = self._tick_sig()
+        self._tick_shadows = rng.normal(0, sig, (nm, nc))
+        self._tick_pos = np.array([[u["x0"], u["y0"], u["z0"]] for u in self.ues])
+        self._tick_vel = np.array([[u["spd"] * math.cos(math.radians(u["hdg"])),
+                                    u["spd"] * math.sin(math.radians(u["hdg"])), 0.0]
+                                   for u in self.ues])
+        self._tick_srv = [0] * nm
+        self._tick_l3 = np.zeros((nm, nc))
+        self._tick_ti = 0
+        self._tick_t_ms = 0.0
+
+    def _step_tick(self, dt_ms: float) -> list[dict]:
+        """推进一个 tick (dt_ms 毫秒), 返回本 tick 的 UE 记录行。
+
+        动作时变语义: 调用方可在两次 _step_tick 之间修改
+        self.cell_tx_scale_db / self.tx_scale_db / self.prb_scale /
+        self.ho_offset_db / self.cell_az_offset, 变更自下一 tick 起生效。
+        L3 滤波历史在 self._tick_l3 (形状 (n_ue, n_cell))。"""
+        rng = self.rng
+        nm, nc = self.n_ue, self.n_cell
+        sig = self._tick_sig()
+        biz = self.biz_of(self.scene)
+        ti = self._tick_ti
+        tms = self._tick_t_ms
+        t = tms / 1000.0
+        dt_s = dt_ms / 1000.0
+
+        pos = self._tick_pos + self._tick_vel * dt_s
+        self._pos = pos
+        if self.scene == "低空":
+            for j in range(nm):
+                pos[j, 2] = 50.0 + 10 * math.sin(0.2 * t + j)
+        # 阴影相关时间归一化到 50ms 步长 (rho 定义同 frozen 路径, dt 无关)
+        rho = math.exp(-self.speed * dt_s / 50.0)
+        shadows = (rho * self._tick_shadows
+                   + math.sqrt(max(0.0, 1 - rho * rho))
+                   * sig * rng.normal(0, 1, (nm, nc)))
+        pwrs = np.zeros((nm, nc))
+        for j in range(nm):
+            for ci, cell in enumerate(self.site):
+                pwrs[j, ci] = self.rx_power_re_dbm(pos[j, 0], pos[j, 1],
+                                                   pos[j, 2], cell, shadows[j, ci])
+        if ti == 0:
+            for j in range(nm):
+                self._tick_srv[j] = int(np.argmax(pwrs[j]))
+            l3 = pwrs.copy()
+        else:
+            l3 = (1 - 0.25) * self._tick_l3 + 0.25 * pwrs   # L3 滤波 (同 engine)
+            for j in range(nm):                             # A3 硬切换
+                s = self._tick_srv[j]
+                best = int(np.argmax(l3[j]))
+                if (best != s
+                        and l3[j, best] - l3[j, s] >= self.ho_offset_db + 1.0):
+                    self._tick_srv[j] = best
+        self._tick_l3 = l3
+        self._tick_shadows = shadows
+        self._tick_pos = pos
+
+        rows = []
+        for j in range(nm):
+            s = self._tick_srv[j]
+            rsrp = pwrs[j, s]
+            sinr = self._sinr(rsrp, pwrs[j], s, rng)
+            cqi = cal_cqi_from_sinr(sinr, rng)
+            dl = cal_dl_mbps(sinr, self.prb_scale, rng,
+                             anchor_mbps=self.anchor["dl"][0])
+            ul = dl * (0.35 if not self.urllc else 0.5)
+            lat = cal_lat_ms(biz, rng)
+            plr = cal_plr(biz, rng)
+            rsrq = cal_rsrq(rsrp, sinr, rng)
+            ncs = [ci for ci in np.argsort(-pwrs[j]) if ci != s][:2]
+            rows.append({
+                "UEID": j, "类型": self.ues[j]["type"],
+                "位置X": round(pos[j, 0], 2), "位置Y": round(pos[j, 1], 2),
+                "位置Z": round(pos[j, 2], 2),
+                "速度X": round(self._tick_vel[j, 0], 2),
+                "速度Y": round(self._tick_vel[j, 1], 2),
+                "速度Z": round(self._tick_vel[j, 2], 2), "业务及需求": biz,
+                "时间戳(ms)": float(tms),
+                "服务小区ID": self.site[s]["cell_name"],
+                "CSI": f"csi/csi_slot{int(tms / 0.5)}_MS{j}.txt",
+                "服务小区RSRP(dBm)": round(rsrp, 2),
+                "服务小区SINR(dB)": round(sinr, 2), "CQI": cqi,
+                "邻区ID": ";".join(self.site[ci]["cell_name"] for ci in ncs),
+                "邻区RSRP": ";".join(f"{pwrs[j, ci]:.1f}" for ci in ncs),
+                "端到端时延(ms)": round(lat, 2),
+                "上行速率(Mbps)": round(ul, 2), "下行速率(Mbps)": round(dl, 2),
+                "丢包率": round(float(plr), 6),
+                "同步信号波束索引": int(j % 8),
+                "功率余量(dB)": round(
+                    min(19.0, max(0.0, 23.0 - (rsrp + 140) * 0.5 + rng.normal(0, 1.0))), 2),
+                "到达角(度)": round(math.degrees(math.atan2(pos[j, 1], pos[j, 0])) % 360, 1),
+            })
+        self._tick_ti += 1
+        self._tick_t_ms += dt_ms
+        return rows
+
+    def _run_tick(self) -> dict[str, pd.DataFrame]:
+        """tick 模式主循环: 固定 tick_ms 步长走完 ep_ms。"""
+        assert self.tick_ms and self.tick_ms > 0
+        self._init_tick_state()
+        rows_ue = []
+        n_ticks = int(round(self.ep_ms / self.tick_ms))
+        for _ in range(n_ticks):
+            rows_ue.extend(self._step_tick(self.tick_ms))
+        return {"ue": pd.DataFrame(rows_ue)}
+
+    # ---- 冻结路径: 历史行为逐位保留 (tick_ms=None 时走此路) ----
+    def _run_frozen(self) -> dict[str, pd.DataFrame]:
         rng = self.rng
         nc, nm = self.n_cell, self.n_ue
         sig = {"城区": 9.0, "郊区": 9.0, "低空": 8.0, "机器人工厂": 8.5,
