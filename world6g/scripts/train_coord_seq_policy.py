@@ -397,22 +397,13 @@ def main():
               f"| heldout reward MAE={mae:.3f} R2={r2:.3f}", flush=True)
 
         # ---- 2. BC 数据: 离线标签 + 在线规划轨迹 ----
-        off_tr = bc_mask & tr
+        off_tr = bc_mask & (row_fold != k)
         lab_off = planner_labels(members, stats, row_ctx[off_tr],
                                  row_scene[off_tr], device)
-        on_ctx, on_act, on_scene = [], [], []
         train_groups = [(sc, seeds_of(sc)[k2])
                         for k2 in range(len(SEED_OFFSETS)) if k2 != k
                         for sc in SCENES]
-        train_returns = []
         wfn = wm_greedy_fn(members, stats, device)
-        for sc, sd in train_groups:
-            objs, acts, _ = closed_loop(sc, sd, wfn)
-            ref = get_ref(sc, sd)
-            train_returns.append(float(sum(o - r for o, r in zip(objs, ref))))
-            for t in range(N_DEC - 1):
-                on_ctx.append(row_ctx[0])  # 占位, 下面重算
-        # 上面占位写法无法拿到在线 ctx, 重新收集:
         on_ctx, on_act, on_scene = [], [], []
         train_returns = []
         for sc, sd in train_groups:
@@ -433,7 +424,7 @@ def main():
         pol, bc_stats, bc_acc, bc_loss = train_bc(
             Xb, yb, Sb, args.bc_epochs, device,
             args.bc_seed + k)
-        off_te = bc_mask & te
+        off_te = bc_mask & (row_fold == k)
         lab_te = planner_labels(members, stats, row_ctx[off_te],
                                 row_scene[off_te], device)
         bc_te = bc_argmax(pol, bc_stats, row_ctx[off_te],

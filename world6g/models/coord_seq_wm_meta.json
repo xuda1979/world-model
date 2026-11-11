@@ -1,0 +1,40 @@
+{
+ "objective": "时序世界模型 (M11): (ctx, action, scene) → (next_ctx, reward)",
+ "model": "TemporalWM ensemble x3 (30-256-256-256-11)",
+ "params": 142347,
+ "in_dim": 30,
+ "out_dim": 11,
+ "ctx_cols": [
+  "sinr_c0",
+  "n_ue_c0",
+  "sinr_c1",
+  "n_ue_c1",
+  "sinr_c2",
+  "n_ue_c2",
+  "l3_margin_c0",
+  "l3_margin_c1",
+  "l3_margin_c2",
+  "mean_sinr"
+ ],
+ "action_space": {
+  "per_cell_db": [
+   -6.0,
+   -3.0,
+   0.0,
+   3.0,
+   6.0
+  ],
+  "n_cells": 3,
+  "n_combos": 125
+ },
+ "seed": 7100,
+ "epochs": 1200,
+ "data": "/Users/daxu/software/world-model/world6g/datalake/generated/coord_seq_dataset.parquet",
+ "loso_file": "coord_seq_loso.json",
+ "loso_heldout_reward": {
+  "reward_mae": 0.919853654465362,
+  "reward_r2": 0.43054232165451706
+ },
+ "usage": "输入 ctx (FX 顺序, raw) + combo idx + scene idx → 输出 [next_ctx(10), reward(1)] (raw 单位); 规划: 对 125 组合批量前向取 reward argmax",
+ "trained_at": "2026-11-11 11:04"
+}
