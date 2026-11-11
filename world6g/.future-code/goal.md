@@ -1342,3 +1342,8 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   scripts/make_progress_report_1111.py, 全部数字与权威 JSON 同源零手抄)。
 - **提交**: eea4929 (训练脚本) + abd0584 (修复 + 产物入库) 已在前; 本次收口 commit 含
   账本 + 报告 + 守护测试, 立即推送 (operator 即时推送约束)。
+- **Status: completed for operator REVIEW (fc2679c, 2026-11-11, 根账本镜像)** — 收口 commit
+  fc2679c (17 文件, +1303/−458) 已推送 (abd0584..fc2679c); 收口后新鲜复验:
+  测试套件 58/58 PASS + probe_report_v3 72/72 PASS（零手抄断言全命中）; 双账本
+  grep -c 会话 35/36 两侧均 = 1。工作树仅剩确认校验后排除的 smoke 中间产物
+  (coord_seq_*_smoke.* 与 coord_seq_folds_smoke.pt, 有意不入库)。M11 目标全部收口。
