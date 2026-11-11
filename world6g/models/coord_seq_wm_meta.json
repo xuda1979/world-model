@@ -32,9 +32,9 @@
  "data": "/Users/daxu/software/world-model/world6g/datalake/generated/coord_seq_dataset.parquet",
  "loso_file": "coord_seq_loso.json",
  "loso_heldout_reward": {
-  "reward_mae": 0.919853654465362,
-  "reward_r2": 0.43054232165451706
+  "reward_mae": 0.8210861722031538,
+  "reward_r2": 0.5337453163780987
  },
  "usage": "输入 ctx (FX 顺序, raw) + combo idx + scene idx → 输出 [next_ctx(10), reward(1)] (raw 单位); 规划: 对 125 组合批量前向取 reward argmax",
- "trained_at": "2026-11-11 11:04"
+ "trained_at": "2026-11-11 12:02"
 }

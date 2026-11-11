@@ -3,7 +3,7 @@
 """
 时序协同策略 (Coordination Sequence Policy, M11)
 =================================================
-在时序 MDP 数据集 (coord_seq_dataset.parquet, 3000 行 = 25 组 × 12 eps × 10 dec)
+在时序 MDP 数据集 (coord_seq_dataset.parquet, 9000 行 = 25 组 × 36 eps × 10 dec)
 上完成 "时序世界模型 → 规划 oracle → BC 蒸馏" 全链路, 并做 5 折闭环 LOSO:
 
   1. 时序世界模型 (temporal WM): (ctx_t, a_t, scene) → (ctx_{t+1}, r_{t+1})
@@ -142,8 +142,16 @@ def load_transitions(df: pd.DataFrame):
 
 # ---------------------------------------------------------------- WM 训练/推理
 def train_wm_ensemble(X, A, R, XN, S, n_members, epochs, device, seed0,
-                      hidden=256, lr=2e-3):
-    """训练 WM ensemble; 返回 (members, stats, final_losses)。"""
+                      hidden=256, lr=2e-3, wd=1e-4, val_frac=0.15,
+                      patience=100):
+    """训练 WM ensemble (AdamW + 内部验证早停); 返回 (members, stats, final_losses)。
+
+    v1 教训 (abd0584): 1200ep 全批量训练让 train loss 塌到 0.001 但 heldout
+    R² 从 0.41 (200ep) 跌到 0.25 — 典型记忆化。v2 修复:
+      - AdamW (解耦 weight decay) 抑制权重膨胀;
+      - 内部验证集 (val_frac, 与 LOSO 折无关, 零泄漏) 上早停, patience 轮
+        无改进即回滚到最优验证权重。
+    """
     ctx_mu = X.mean(0)
     ctx_sd = X.std(0) + 1e-6
     y = np.hstack([XN, R[:, None]]).astype(np.float32)
@@ -152,21 +160,43 @@ def train_wm_ensemble(X, A, R, XN, S, n_members, epochs, device, seed0,
     P = np.hstack([(X - ctx_mu) / ctx_sd, act_ohMat(A), scene_ohMat(S)])
     P = P.astype(np.float32)
     Y = ((y - y_mu) / y_sd).astype(np.float32)
-    Pt = torch.tensor(P, device=device)
-    Yt = torch.tensor(Y, device=device)
-    members, losses = [], []
+    # 内部验证切分 (由 seed0 决定, 与 LOSO 折独立 — 训练输入本身已排除折数据)
+    n = len(P)
+    rng = np.random.default_rng(seed0)
+    val_i = rng.choice(n, size=max(1, int(n * val_frac)), replace=False)
+    tr_m = np.ones(n, dtype=bool)
+    tr_m[val_i] = False
+    Pt = torch.tensor(P[tr_m], device=device)
+    Yt = torch.tensor(Y[tr_m], device=device)
+    Pv = torch.tensor(P[~tr_m], device=device)
+    Yv = torch.tensor(Y[~tr_m], device=device)
+    members, losses, stop_eps = [], [], []
     for m in range(n_members):
         torch.manual_seed(seed0 + m)
         net = TemporalWM(hidden).to(device)
-        opt = torch.optim.Adam(net.parameters(), lr=lr)
-        loss = None
-        for _ in range(epochs):
+        opt = torch.optim.AdamW(net.parameters(), lr=lr, weight_decay=wd)
+        best_v, best_state, wait, loss = float("inf"), None, 0, None
+        for ep in range(epochs):
             opt.zero_grad()
             loss = ((net(Pt) - Yt) ** 2).mean()
             loss.backward()
             opt.step()
+            with torch.no_grad():
+                v = float(((net(Pv) - Yv) ** 2).mean())
+            if v < best_v - 1e-6:
+                best_v, wait = v, 0
+                best_state = copy.deepcopy(net.state_dict())
+            else:
+                wait += 1
+                if wait >= patience:
+                    break
+        if best_state is not None:
+            net.load_state_dict(best_state)
         members.append(net.eval())
         losses.append(float(loss.detach()))
+        stop_eps.append(ep + 1)
+    print(f"    [wm-ens] 早停 epoch {stop_eps} (val MSE 最优回滚)",
+          flush=True)
     stats = (ctx_mu, ctx_sd, y_mu, y_sd)
     return members, stats, losses
 

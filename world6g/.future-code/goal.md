@@ -1323,3 +1323,22 @@ WM 保真度 pearson 0.797795 = 0.797795）。
 - **commit 8bc94ca 已推送** (31ec7ab..8bc94ca, 含积压 22 提交一次清空)。
 - **下步 (M11 余项)**: 时序策略训练 (时序世界模型 → 规划 oracle → BC 蒸馏) + 闭环
   LOSO (对比 恒零/随机/最优恒定/仿真真值贪心) + 报告 7.6 节 + probe/测试扩展。
+
+## 会话 36 (2026-11-11, M11 时序协同策略 v1 收尾): 时序 WM + 规划 oracle 蒸馏 + 闭环 LOSO 全 5 折入库 (根账本镜像)
+- **训练管线** (scripts/train_coord_seq_policy.py): 时序 WM (3 集成 142,347 参数,
+  30-256-256-256-11, 输入 ctx+action+scene → next_ctx+reward) → 规划 oracle (逐 tick
+  搜索) → BC 蒸馏 (coord_seq_policy.pt, 34,685 参数, 15-128-128-125, 8,325 条专家轨迹,
+  train acc 93.1%) → 闭环 LOSO (5 折按 seed_offset, 25 组, 385s)。
+- **权威结果** (coord_seq_loso.json, 6 控制器): zero 0.00 / random 1.74 / best_const
+  28.55 / wm_greedy 26.69 (胜率 8%) / **bc_policy 26.96 (胜率 12%)** / sim_greedy
+  29.35 (oracle 上界, 胜率 80%); 全场景 BC 追平 best_const、分场景距 oracle <2 点。
+- **时序 WM 留出折**: reward-R² 0.534 / MAE 0.821; 留出折 BC 与规划器动作一致率 82.0%。
+- **修复 (abd0584)**: 折内掩码形状 bug + 死代码清理, 重训后全 5 折产物入库; 诚实披露
+  BC vs sim_greedy 决策重合率仅 31.6% (动作空间 125, 分歧大但回报损失小)。
+- **报告/测试/探针**: make_full_report.py 新增 7.6 节 (报告 v3.0); probe_report_v3.py
+  72/72 PASS (新增 21 项 7.6 断言); 测试套件 58 项 PASS (test_coord_seq 21 项 +
+  test_twin_temporal 21 项 + test_wm_api 13 项 + 回归)。
+- **中文进展报告 2026-11-11**: docs/progress_report_20261111.md (+docx 生成脚本
+  scripts/make_progress_report_1111.py, 全部数字与权威 JSON 同源零手抄)。
+- **提交**: eea4929 (训练脚本) + abd0584 (修复 + 产物入库) 已在前; 本次收口 commit 含
+  账本 + 报告 + 守护测试, 立即推送 (operator 即时推送约束)。

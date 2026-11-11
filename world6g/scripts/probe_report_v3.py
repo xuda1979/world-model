@@ -148,6 +148,36 @@ def main() -> int:
     want("cp serve endpoint", "/api/coord/action")
     want("cp serve module", "coord_serve.py")
 
+    # ---- 7.6 时序协同策略 (M11: coord_seq_wm / coord_seq_policy / coord_seq_loso, 会话 36) ----
+    swm = load(ROOT / "models" / "coord_seq_wm_meta.json")
+    spm = load(ROOT / "models" / "coord_seq_policy_meta.json")
+    sloso = load(ROOT / "datalake" / "generated" / "coord_seq_loso.json")
+    ssum, swr, smr = sloso["summary"], sloso["win_rate_vs_best_const"], sloso["match_rates_mean"]
+    want("7.6 时序协同策略 (M11)", "7.6 时序协同策略 (M11: 时序世界模型 + 规划 oracle 蒸馏)")
+    want("seq wm params", f"{swm['params']:,}")
+    want("seq wm reward r2", f3(swm["loso_heldout_reward"]["reward_r2"]))
+    want("seq wm reward mae", f3(swm["loso_heldout_reward"]["reward_mae"]))
+    want("seq pol params", f"{spm['params']:,}")
+    want("seq pol train n", f"{spm['n_train']:,}")
+    want("seq pol train acc", f"{spm['train_acc']*100:.1f}")
+    want("seq agreement", f"{sloso['bc_heldout_planner_agreement_mean']*100:.1f}")
+    want("seq wm heldout r2", f3(sloso["wm_heldout_mean"]["reward_r2"]))
+    want("seq wm heldout mae", f3(sloso["wm_heldout_mean"]["reward_mae"]))
+    want("seq zero return", f2(ssum["zero"]["mean"]))
+    want("seq random return", f2(ssum["random"]["mean"]))
+    want("seq best_const return", f2(ssum["best_const"]["mean"]))
+    want("seq wm_greedy return", f2(ssum["wm_greedy"]["mean"]))
+    want("seq bc return", f2(ssum["bc_policy"]["mean"]))
+    want("seq sim return", f2(ssum["sim_greedy"]["mean"]))
+    want("seq win bc", f"{swr['bc_policy']*100:.1f}")
+    want("seq win wm", f"{swr['wm_greedy']*100:.1f}")
+    want("seq win sim", f"{swr['sim_greedy']*100:.1f}")
+    want("seq match bc_vs_sim", f"{smr['bc_vs_sim']*100:.1f}")
+    want("seq match wm_vs_sim", f"{smr['wm_vs_sim']*100:.1f}")
+    want("seq match bc_vs_wm", f"{smr['bc_vs_wm']*100:.1f}")
+    # 33 项 v2 数据检修复验 (test_coord_seq.py 21 项 + sim_greedy oracle 上界自洽)
+    want("seq runtime_s", f"{sloso['runtime_s']:.1f}")
+
     # ---- 版本/日期 ----
     want("版本 v3.0", "v3.0")
 

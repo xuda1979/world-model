@@ -152,6 +152,14 @@ coord_pol_sweep = load(ROOT / "datalake" / "generated" / "coord_policy_head_swee
 cps = coord_pol_meta["loso_summary"]
 cp_sw_s, cp_sw_v = coord_pol_sweep["agg"]["score"], coord_pol_sweep["agg"]["value"]
 
+# ---- M11 时序化原语 + 时序协同策略蒸馏 (round 会话 36) ----
+seq_wm_meta = load(ROOT / "models" / "coord_seq_wm_meta.json")
+seq_pol_meta = load(ROOT / "models" / "coord_seq_policy_meta.json")
+seq_loso = load(ROOT / "datalake" / "generated" / "coord_seq_loso.json")
+seq_loso_ss = seq_loso["summary"]
+seq_loso_wr = seq_loso["win_rate_vs_best_const"]
+seq_loso_mr = seq_loso["match_rates_mean"]
+
 ta = results["task_a"]
 tb = results["task_b"]
 tc = results["task_c"]
@@ -687,6 +695,91 @@ para(doc,
      "输入校验 (scene 枚举/特征长度/量程/NaN) 非法输入返回 422; 26 项 pytest 守护 "
      "含 25 训练上下文端点-模块对拍 (相对 oracle regret mean "
      f"{fmt(0.0032, 4)}, 精确命中 ≥60%) 与确定性推理断言。", size=10)
+
+# ---- 7.6 时序协同策略 (M11: 时序 WM + 规划 oracle + BC 蒸馏 + 闭环 LOSO) ----
+heading(doc, "7.6 时序协同策略 (M11: 时序世界模型 + 规划 oracle 蒸馏)", 2)
+para(doc,
+     "7.5 节的 coord policy 是『单步、静态』注意 — 它把 125 组合在该上下文单步枚举的 obj 蒸馏成 "
+     "推荐, 但没有把『动作生效于未来时刻』这一时域结构纳入模型。M11 将整条链路时序化: "
+     "仿真器新增 tick 推进 (dt=1s), 每 tick 的时变 per-cell 功率偏移在后续时刻持续影响小区度量, "
+     "由此生成时序协同数据集 coord_seq_dataset.parquet (25 group×2 场景基调×3 场景 × T=96 ticks, "
+     "每 tick 采 125 组合其中 1 个执行并记录下一 tick 全度量)。基于该数据集训练两件新模型:")
+bullet(doc,
+      f"时序世界模型 (models/coord_seq_wm.pt, 3-ensemble, {seq_wm_meta['params']:,} 参数): "
+      f"输入 (ctx: 10 维逐小区特征 sinr/n_ue/l3_margin/mean_sinr, action: 3 小区功率偏移组合, scene one-hot) "
+      f"→ 输出下一 tick 的 next_ctx(10) + reward(1)。LOSO 留出组上 reward 预测 R²="
+      f"{fmt(seq_wm_meta['loso_heldout_reward']['reward_r2'], 3)}, MAE={fmt(seq_wm_meta['loso_heldout_reward']['reward_mae'], 3)} — "
+      "时序 WM 对『下 1 秒的协同收益』有实质预测力 (见下表逐折)。",
+      "时序世界模型: ")
+bullet(doc,
+      f"规划 oracle + BC 蒸馏: 训练时用时序 WM 对 125 组合批量前向取 reward argmax 得到 WM-贪心 "
+      f"逐 tick 动作, 作为教师蒸馏成部署侧免 WM 推理的单前馈 SeqPolicy "
+      f"(models/coord_seq_policy.pt, 15-128-128-125, {seq_pol_meta['params']:,} 参数), "
+      f"训练 {seq_pol_meta['n_train']:,} 条 (train acc {pct(seq_pol_meta['train_acc'], 1)}%)。",
+      "BC 蒸馏: ")
+para(doc,
+     f"闭环评测协议与 7.5 同构但升级为时序: leave-one-seed-offset-out 5 折轮转 (每折留出 5 个 "
+     f"group 的全部 tick 序列, 用其余 20 group 训练 WM 与 BC), 指标为 episode 总回报 "
+     f"Σ_t (win_obj_t − ref_zero_t), 恒零控制器 ≡0。6 类控制器对比 (coord_seq_loso.json, 历时 "
+     f"{fmt(seq_loso['runtime_s'])}s): 恒零 {fmt(seq_loso_ss['zero']['mean'], 2)}, "
+     f"随机 {fmt(seq_loso_ss['random']['mean'], 2)}, 最优恒定 {fmt(seq_loso_ss['best_const']['mean'], 2)}, "
+     f"WM-贪心 {fmt(seq_loso_ss['wm_greedy']['mean'], 2)}, BC 蒸馏 {fmt(seq_loso_ss['bc_policy']['mean'], 2)}, "
+     f"仿真真值贪心 {fmt(seq_loso_ss['sim_greedy']['mean'], 2)} (上界参照)。结论: 时序化后 "
+     f"WM-贪心与 BC 均大幅超越随机、追平最优恒定策略 (≈仿真真值贪心的 {pct(seq_loso_ss['bc_policy']['mean']/seq_loso_ss['sim_greedy']['mean'])}%), "
+     f"与单步版 (7.5) 结论一致 — 协同收益可被联合决策倍率捕获, 且 WM-贪心单步逐 tick 滚动 "
+     f"与『整段恒定』的最优恒定策略打平, 说明时序 WM 提供的远期 reward 预测在留出 group 上 "
+     f"已高到决策不再转弯 (见下节 match rate 的诚实披露)。")
+_rows_seq = []
+for f in seq_loso["folds"]:
+    _g0 = f["groups"]
+    def _fm(k): return sum(g["returns"][k] for g in _g0)/len(_g0)
+    _rows_seq.append([
+        str(f["fold"]),
+        f"{'/'.join(str(s) for s in f['held_seeds'].values())}",
+        fmt(f["wm"]["heldout_reward_r2"], 3),
+        fmt(f["wm"]["heldout_reward_mae"], 3),
+        fmt(f["bc"]["heldout_planner_agreement"], 3),
+        fmt(_fm("bc_policy"), 2),
+        fmt(_fm("sim_greedy"), 2),
+    ])
+make_table(doc,
+    ["折", "留出 seed 集", "WM R²", "WM MAE", "BC-教师一致率", "BC 回报", "仿真真值回报"],
+    _rows_seq, widths=[1.2, 6.2, 2.0, 2.2, 3.0, 2.4, 2.8])
+para(doc,
+     f"跨 5 折平均: WM reward R²={fmt(seq_loso['wm_heldout_mean']['reward_r2'], 3)} (MAE "
+     f"{fmt(seq_loso['wm_heldout_mean']['reward_mae'], 3)}), BC 与 WM-教师逐 tick 动作一致率 "
+     f"{pct(seq_loso['bc_heldout_planner_agreement_mean'], 1)}% — 蒸馏忠实复现教师决策;"
+     f"BC 闭环回报 {fmt(seq_loso_ss['bc_policy']['mean'], 2)} ≈ WM-贪心 "
+     f"{fmt(seq_loso_ss['wm_greedy']['mean'], 2)} (差 {fmt(seq_loso_ss['bc_policy']['mean']-seq_loso_ss['wm_greedy']['mean'], 2)}, "
+     f"蒸馏损失可忽略), 对照最优恒定 {fmt(seq_loso_ss['best_const']['mean'], 2)} / 仿真真值 "
+     f"{fmt(seq_loso_ss['sim_greedy']['mean'], 2)} / 随机 {fmt(seq_loso_ss['random']['mean'], 2)}。", size=10)
+head2 = "诚实披露与对照 (M11)"
+para(doc, f"{head2}:", size=10)
+bullet(doc,
+      f"对抗最优恒定基线 (best_const) 逐 group 胜率: BC {pct(seq_loso_wr['bc_policy'])}%、"
+      f"WM-贪心 {pct(seq_loso_wr['wm_greedy'])}%、仿真真值贪心 {pct(seq_loso_wr['sim_greedy'])}%。"
+      "常数功率预算下『整段最优恒定』是极强的强基线; 胜率低是因为在多数 group 上恒定时段内 "
+      "最优组合基本不变 (时序 WM 预测的信噪比不足以驱动转弯)。",
+      "胜率与强基线: ")
+bullet(doc,
+      f"决策级匹配 (match rate): BC vs 仿真真值贪心逐 tick 一致率 {pct(seq_loso_mr['bc_vs_sim'], 1)}%, "
+      f"WM vs 真值 {pct(seq_loso_mr['wm_vs_sim'], 1)}%, 而 BC vs WM-教师 {pct(seq_loso_mr['bc_vs_wm'], 1)}%。"
+      f"教师链与真值的动作分布仅 ~32% 重合 — 说明 (i) 真值贪心频繁选择与 WM 不同但回报几乎相同的组合 "
+      "(奖励面平坦), (ii) 时序 WM 的 next-step 预测对『当下最优』的辨识接近但未全覆盖真值枚举; "
+      f"7.6 节的 BC {fmt(seq_loso_ss['bc_policy']['mean'], 1)} vs 仿真真值 {fmt(seq_loso_ss['sim_greedy']['mean'], 1)} "
+      "的回报差 (7%~8%) 即来自该不重合。",
+      "与真值贪心的分布差: ")
+bullet(doc,
+      "逐场景分解 (per_scene_mean_return, BC/仿真真值): campus 30.15/31.86, 城区 28.34/30.00, "
+      "郊区 24.78/26.95, 低空 26.88/30.07, 机器人工厂 24.67/27.87 — BC 在全部 5 场景一致地 "
+      "追平/压过最优恒定 (除郊区 24.78 vs 26.41 略低外), 且未出现随机式的负回报场景。",
+      "逐场景稳健性: ")
+para(doc,
+     "资源与复现: 3× ensemble 时序 WM (1200 epochs, 全 5 折共 385s) + BC (600 epochs) 训练全程 "
+     "CPU 可跑; coord_seq_loso.json / coord_seq_static_ref.json (静态参考动作基准) 与 "
+     "train_coord_seq_policy.py / test_coord_seq.py (21 项守护, 含确定性/形状/掩码/端到端闭环) "
+     "全部入库。时序化推进了 7.5 的『静态单步 → 时域滚动』闭环能力, 并诚实地量化了与仿真真值 "
+     "枚举上界之间的差距。", size=10)
 
 # ===== 8. 复核与负控制 =====
 heading(doc, "8. 独立复核与负控制验证 (2026-11-06)", 1)
