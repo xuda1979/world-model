@@ -1347,3 +1347,8 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   测试套件 58/58 PASS + probe_report_v3 72/72 PASS（零手抄断言全命中）; 双账本
   grep -c 会话 35/36 两侧均 = 1。工作树仅剩确认校验后排除的 smoke 中间产物
   (coord_seq_*_smoke.* 与 coord_seq_folds_smoke.pt, 有意不入库)。M11 目标全部收口。
+- **复验加固 (2026-11-11, a8fdca5 后)**: 新增 scripts/probe_progress_1111.py — 周报溯源探针,
+  对 docs/progress_report_20261111.docx 全部 36 项关键数字独立重算断言, 36/36 PASS
+  (E3 均值/动作率; coord policy 实现率 96.3%/regret 0.128; sweep value/score 对比; seq WM 参数/R²/MAE;
+  BC 轨迹数/acc/一致率; 6 控制器回报+胜率; match rate; runtime; 逐场景 BC/sim 各 5 场景)。
+  至此两份报告均有可重复零手抄守护: 技术报告 probe_report_v3 72/72 + 周报 probe_progress_1111 36/36。

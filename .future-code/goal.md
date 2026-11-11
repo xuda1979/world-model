@@ -5,7 +5,8 @@ Active constraints: make sure we have very good world prediction models and acti
      ✔ 跑全测试套件 + git 提交推送 (58/58 PASS + probe 72/72, fc2679c/62ad188 已推送)                       
      ✔ 更新双 goal.md 账本（会话 36, 双镜像 grep -c 均 = 1）                          
      ✔ 新中文进展报告 (2026-11-11, docs/progress_report_20261111.md + .docx)                             
-     ✔ 重新生成 docx 并更新 probe (probe_report_v3.py 72/72 零手抄断言全命中)                                                                                                                                                                                                                                            
+     ✔ 重新生成 docx 并更新 probe (probe_report_v3.py 72/72 零手抄断言全命中)
+     ✔ 复验加固: 新增 probe_progress_1111.py 周报溯源探针 36/36 (技术报告 probe 72/72 + 周报 probe 36/36 双守护)                                                                                                                                                                                                                                            
      ✔ 修复 train_coord_seq_policy.py 折内掩码/死代码 bug
      ✔ 跑通 M11 冒烟 + 完整训练闭环                                                                                                                                                                                                                                          
      ✔ v2 质量迭代: 3× 数据集 + WM early-stop/wd + 5 折重训对比                                                                                                                                                                                                              
