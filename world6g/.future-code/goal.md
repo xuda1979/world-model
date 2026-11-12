@@ -1408,6 +1408,16 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   (PolicyNet-Fused 29,577 params 一步决策) / `GET /api/coord/info`
   (LOSO 实现率 0.9631) / `GET /api/campus` (中国移动信息港) / `POST /api/chat`
   (「城区平均RSRP」→ 均值 -115.7dBm)。
+- **交付物审计收官 (2026-11-12, 根账本镜像)**: 双 docx 逐项交叉核对 — 方案一 §五
+  五类交付与 §七 季付清单、方案二 §八 九项季付全部映射到仓库实物: 训练推理代码
+  33 脚本 + api.py 模型服务 /workbench, 权重 models/*.pt 12 个生产权重
+  (coord_policy 613,874 / coord_seq_wm 3×142,347 / coord_seq_policy / 基线 GRU-WM /
+  多步一致性 / 策略蒸馏 fused 等), 依赖锁 requirements.lock (96 pin), 四类数据集
+  parquet + 数据卡 data_cards_v02.md, 质量与增强效果报告 fidelity_report.md + docx,
+  中文技术报告 world6g_full_technical_report.docx (汉字 6,350) + 校准报告 + 周报
+  docx (2026-11-11), 演示脚本 demo_script_v02.md + 启动手册 startup_manual_v02.md;
+  双守护探针复验 72/72 + 36/36, 镜像 grep -c 各 = 1; 唯一剩余项 "备用录像" 为
+  13 日演示日项 (非本次缺口)。
 - **Status: completed (2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
   (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
   直通 dry-run 交叉验证白名单, commit 616de45/1062c44 已推 origin/main; 13 日

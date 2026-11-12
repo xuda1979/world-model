@@ -49,5 +49,15 @@ Active constraints: make sure we have very good world prediction models and acti
    (预测-验证闭环, 城区, Δ效应逐 KPI) / `POST /api/wm/action` (PolicyNet-Fused
   一步决策) / `GET /api/coord/info` (LOSO 0.9631) / `GET /api/campus` / `POST /api/chat`
   (「城区平均RSRP」应答) 全部 200, 无 500。
+- **交付物审计收官 (2026-11-12)**: 双 docx 逐项交叉核对 — 方案一 §五 五类交付
+  (数据接入质检/场景校准/仿真生成回放/数据集服务/前端部署) 与 §七 季付清单、方案二
+  §八 九项季付全部映射到仓库实物: 训练推理代码 33 脚本 + api.py 模型服务 /workbench,
+  权重 models/*.pt 12 个生产权重 (coord_policy 613,874 / coord_seq_wm 3×142,347 /
+  coord_seq_policy / 基线 GRU-WM / 多步一致性 / 策略蒸馏 fused 等), 依赖锁
+  requirements.lock (96 pin), 四类数据集 parquet + 数据卡 data_cards_v02.md, 质量与
+  增强效果报告 fidelity_report.md, 中文技术报告 world6g_full_technical_report.docx
+  (汉字 6,350) + 校准报告 + 周报 docx (2026-11-11), 演示脚本 demo_script_v02.md
+  + 启动手册 startup_manual_v02.md; 双守护探针复验 72/72 + 36/36, 镜像 grep -c 各 = 1;
+  唯一剩余项 "备用录像" 为 13 日演示日项 (非本次缺口)。
 - **Status: completed (2026-11-12)** — 三交付物 + 双账本镜像一次提交推送
   (616de45 + 状态收口 1062c44, 已推 origin/main, 13 日演示前置全部就绪)。
