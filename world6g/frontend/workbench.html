@@ -191,6 +191,7 @@
         <div><label>小区 UE 数 (逗号分隔)</label><input id="csNue" value="4, 2, 3"></div>
       </div>
       <button class="rec-btn" id="csBtn">推荐协同功率偏移</button>
+      <button class="rec-btn" id="dlCoordBtn" title="下载最近一次推荐结果为 JSON" style="margin-top:6px">⬇ 下载推荐 JSON</button>
       <div id="csOut"></div>
     </div>
     <div class="panel">
@@ -206,6 +207,9 @@
         <button id="tkNext" title="下一 tick">⏭</button>
         <span id="tkCur">tick 0 / 9</span>
         <span id="tkRew" class="tick-rew"></span>
+      </div>
+      <div class="tick-ctl" style="margin-top:4px">
+        <button id="tkCsvBtn" title="导出当前切片为 CSV (数据导出)">⬇ 导出切片 CSV</button>
       </div>
       <table class="tick-table" id="tkTab">
         <thead><tr><th>tick</th><th>P0</th><th>P1</th><th>P2</th><th>SINR</th><th>UE</th>
@@ -559,6 +563,7 @@ document.querySelectorAll('.chat-sug button').forEach(b =>
 /* ---------- 协同策略面板 (POST /api/coord/action) ---------- */
 const CS_SCENES = ['campus', '城区', '郊区', '低空', '机器人工厂'];
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+let CS_LAST = null;
 async function runCoord() {
   const scene = document.getElementById('csScene').value;
   const sinrRaw = document.getElementById('csSinr').value;
@@ -574,6 +579,7 @@ async function runCoord() {
   btn.disabled = true; out.innerHTML = '<div class="errline">推理中…</div>';
   try {
     const r = await post(API + '/api/coord/action', {scene, sinr_c: sinr, n_ue_c: nue});
+    CS_LAST = r;
     const a = r.action, ctx = r.ctx, top = r.top_k || [];
     let rows = top.map((t, i) =>
       `<tr class="${i===0?'best':''}"><td>${esc(t.combo)}</td><td>${t.value}</td></tr>`).join('');
@@ -590,6 +596,25 @@ async function runCoord() {
   } finally { btn.disabled = false; }
 }
 document.getElementById('csBtn').addEventListener('click', runCoord);
+document.getElementById('dlCoordBtn').addEventListener('click', () => {
+  if (!CS_LAST) { alert('请先点击「推荐协同功率偏移」'); return; }
+  const blob = new Blob([JSON.stringify(CS_LAST, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `coord_action_${CS_LAST.scene}_${Date.now()}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+});
+
+/* ---------- tick 切片 CSV 导出 (数据导出, 方案一 V0.2 验收点) ---------- */
+document.getElementById('tkCsvBtn').addEventListener('click', () => {
+  const scene = document.getElementById('tkScene').value;
+  const seed = +document.getElementById('tkSeed').value;
+  const ep = +document.getElementById('tkEp').value;
+  const url = `${API}/api/coord/ticks/export?scene=${encodeURIComponent(scene)}&seed=${seed}&ep_i=${ep}`;
+  const a = document.createElement('a');
+  a.href = url; a.download = `coord_ticks_${scene}_s${seed}_ep${ep}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+});
 
 /* ---------- 时序 tick 回放面板 (GET /api/coord/ticks) ---------- */
 let TICK = null, TICK_IDX = 0, TICK_MAX = 9, TICKTM = null;

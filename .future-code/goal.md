@@ -12,3 +12,15 @@ Active constraints: make sure we have very good world prediction models and acti
      ✔ v2 质量迭代: 3× 数据集 + WM early-stop/wd + 5 折重训对比                                                                                                                                                                                                              
      ✔ 新建 test_coord_seq.py 守护测试                                                                                                                                                                                                                                       
       … +1 completed
+
+## 会话 37 (2026-11-12, 方案一 V0.2 演示面收口, 双账本镜像)
+- **导出能力** (方案一 V0.2 验收点"界面与导出"): `GET /api/coord/ticks/export` —
+  复用 tick 切片过滤语义, 输出 scene 中文文件名 CSV (RFC 5987 filename* + ASCII 回退)。
+- **工作台双下载按钮** (workbench.html): 「⬇ 下载推荐 JSON」+「⬇ 导出切片 CSV」。
+- **护栏测试 +2** → 套件 64/64 PASS (导出内容与 JSON 切片逐格一致 + 422/404 语义)。
+- **演示脚本冻结** docs/demo_script_v02.md (2026-11-12 冻结, 13 日按脚本验收):
+  10 分钟 6 环节, 全部数字取自 parquet + 天花板探针实测 (Σreward 4.7318 /
+  tick8 +3.065 / win R²=0.898 / reward R²=0.62 上界 vs v2 0.534)。
+- **Status: completed (2026-11-12)** — 收口 commit 含 api.py + workbench.html +
+  test_wm_api.py + demo_script_v02.md + 双账本, 推送后复验 64/64 PASS。V0.2
+  冻结演示前置全部就绪, 13 日按脚本打勾。

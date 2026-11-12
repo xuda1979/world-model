@@ -1352,3 +1352,22 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   (E3 均值/动作率; coord policy 实现率 96.3%/regret 0.128; sweep value/score 对比; seq WM 参数/R²/MAE;
   BC 轨迹数/acc/一致率; 6 控制器回报+胜率; match rate; runtime; 逐场景 BC/sim 各 5 场景)。
   至此两份报告均有可重复零手抄守护: 技术报告 probe_report_v3 72/72 + 周报 probe_progress_1111 36/36。
+
+## 会话 37 (2026-11-12, 方案一 V0.2 演示面收口): 导出端点 + 工作台双下载 + 演示脚本冻结 (双账本镜像)
+- **导出能力** (方案一 V0.2 新增验收点"界面与导出"): backend/api.py 新增
+  `GET /api/coord/ticks/export` — 复用 _ticks_slice 过滤语义 (scene/seed/ep_i,
+  默认首切片, 非法 scene→422, 切片缺失→404), 输出 `coord_ticks_<scene>_s<seed>_ep<n>.csv`
+  (text/csv, RFC 5987 filename* 支持中文文件名 + ASCII 回退)。
+- **工作台双下载按钮** (frontend/workbench.html): 协同策略面板「⬇ 下载推荐 JSON」
+  (Blob 前端下载 coord_action_*.json) + Tick 面板「⬇ 导出切片 CSV」(服务端文件下载)。
+- **护栏测试 +2** (test_wm_api.py): 导出 CSV 内容与 JSON 切片逐格一致 + 过滤语义
+  同源 (中文 filename* 编码/422/404); 全套件复跑 **64/64 PASS**。
+- **演示脚本冻结** (docs/demo_script_v02.md): 冻结日期 2026-11-12 (方案一 §6),
+  11月13日按固定脚本验收; 10 分钟 6 环节 (3D 五层渲染/协同策略跨场景 Top-5/Tick 回放
+  Σreward 4.7318 + 高光步 tick8 +3.065/WM 可预测性 win R²=0.898 + reward R²=0.62 上界/
+  智能问答 3 条/非法输入 422 护栏 + CSV·JSON 导出); 全部冻结数字取自
+  coord_seq_dataset.parquet + wm_ceiling_probe.json 实测, 含退出/异常预案 + 6 项验收 checklist。
+- **Status: completed (db94ffe 后, 2026-11-12, 根账本镜像)** — 本次收口 commit 含
+  api.py + workbench.html + test_wm_api.py + demo_script_v02.md + 双账本, 推送后
+  复验: 测试套件 64/64 PASS (含新增 2 项导出护栏)。V0.2 冻结演示全部前置就绪,
+  13 日按 demo_script_v02.md 逐项打勾验收。

@@ -24,7 +24,7 @@ import pandas as pd
 import duckdb
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from datalake.config import DB_PATH, GEN_DIR, DICT_CSV, EPISODES
@@ -689,6 +689,53 @@ def coord_ticks(scene: Optional[str] = Query(None),
                            .rename(columns={"ep_i": "n_episodes"})
                            .to_dict("records"),
     }
+
+
+def _ticks_slice(scene, seed, ep_i) -> pd.DataFrame:
+    """复用 coord_ticks 的过滤语义, 返回排序后的切片 DataFrame."""
+    df = _load_ticks_df()
+    if scene is None:
+        scene = df["scene"].iloc[0]
+    if scene not in _TICK_SCENES:
+        raise HTTPException(422, f"scene 必须为 {_TICK_SCENES} 之一, 收到: {scene!r}")
+    sub = df[df["scene"] == scene]
+    if sub.empty:
+        raise HTTPException(404, f"scene={scene} 无 tick 数据")
+    if seed is None:
+        seed = int(sub["seed"].iloc[0])
+    paired = sub[sub["seed"] == seed]
+    if paired.empty:
+        raise HTTPException(404, f"scene={scene} seed={seed} 无 tick 数据")
+    if ep_i is None:
+        ep_i = int(paired["ep_i"].iloc[0])
+    g = paired[(paired["ep_i"] == ep_i)].sort_values("dec_idx")
+    if g.empty:
+        raise HTTPException(404, f"scene={scene} seed={seed} ep_i={ep_i} 无 tick 数据")
+    return g
+
+
+@app.get("/api/coord/ticks/export")
+def coord_ticks_export(scene: Optional[str] = Query(None),
+                       seed: Optional[int] = Query(None),
+                       ep_i: Optional[int] = Query(None)):
+    """导出当前 tick 切片为 CSV (方案一 V0.2 '界面与导出' 验收点).
+
+    过滤语义与 /api/coord/ticks 完全一致 (同 422/404); 列 = _TICK_JSON_COLS
+    前附 scene/seed/ep_i/dec_idx, 供表格软件/报告直接复用.
+    """
+    g = _ticks_slice(scene, seed, ep_i)
+    cols = ["scene", "seed", "ep_i", "dec_idx"] + list(_TICK_JSON_COLS)
+    body = g[cols].to_csv(index=False)
+    scene = str(g["scene"].iloc[0])
+    seed = int(g["seed"].iloc[0])
+    ep_i = int(g["ep_i"].iloc[0])
+    # 文件名可能含中文场景名 → RFC 5987 filename* (UTF-8 百分号编码), 表头 ASCII 安全
+    fname = f"coord_ticks_{scene}_s{seed}_ep{ep_i}.csv"
+    from urllib.parse import quote
+    disp = (f"attachment; filename=\"coord_ticks_s{seed}_ep{ep_i}.csv\"; "
+            f"filename*=UTF-8''{quote(fname)}")
+    return Response(content=body, media_type="text/csv",
+                    headers={"Content-Disposition": disp})
 
 
 # ================= 园区地图 (中国移动信息港·昌平) =================

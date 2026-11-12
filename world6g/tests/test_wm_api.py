@@ -459,3 +459,49 @@ def test_coord_ticks_missing_combo_404():
     r = client.get("/api/coord/ticks", params={"scene": "城区", "seed": 1})
     assert r.status_code == 404
     assert "无 tick 数据" in r.json()["detail"]
+
+
+# ---------- tick 切片 CSV 导出 (方案一 V0.2 "界面与导出" 验收点) ----------
+
+def test_coord_ticks_export_csv():
+    """导出切片: 200 text/csv + Content-Disposition attachment, 表头与行数
+    与 JSON 切片一致 (同过滤语义), 供表格软件直接复用."""
+    r = client.get("/api/coord/ticks/export")
+    assert r.status_code == 200, r.text[:120]
+    assert r.headers["content-type"].startswith("text/csv")
+    disp = r.headers.get("content-disposition", "")
+    assert "attachment" in disp and "coord_ticks_" in disp
+
+    jr = client.get("/api/coord/ticks").json()
+    lines = r.text.strip().splitlines()
+    assert len(lines) == jr["n_ticks"] + 1           # 表头 + 10 行
+    assert lines[0].split(",")[:4] == ["scene", "seed", "ep_i", "dec_idx"]
+    assert set(jr["rows"][0].keys()) <= set(lines[0].split(","))
+    # 行内容与 JSON 切片逐格一致 (导出与回放同源)
+    head = lines[0].split(",")
+    js = {c: jr["rows"][0][c] for c in jr["rows"][0]}
+    csv_row = dict(zip(head, lines[1].split(",")))
+    for c in ("t_ms", "p0", "win_obj", "ref_obj", "reward",
+              "sinr_c0", "n_ue_c0"):
+        assert abs(float(csv_row[c]) - float(js[c])) < 1e-9, \
+            f"列 {c} 不一致: csv={csv_row[c]} json={js[c]}"
+
+
+def test_coord_ticks_export_same_filter_semantics():
+    """导出过滤语义与 JSON 切片一致: 显式参数精确过滤, 非法 scene 422."""
+    r = client.get("/api/coord/ticks/export",
+                   params={"scene": "低空", "seed": 10039, "ep_i": 5})
+    assert r.status_code == 200, r.text[:120]
+    lines = r.text.strip().splitlines()
+    assert len(lines) == 11                            # 同 JSON 切片 10 tick
+    # RFC 5987: filename* 为 UTF-8 百分号编码 (低空); 含 ASCII 回退名
+    disp = r.headers["content-disposition"]
+    assert "低空" in disp or "%E4%BD%8E%E7%A9%BA" in disp, disp
+    assert "coord_ticks_s10039_ep5.csv" in disp
+    r2 = client.get("/api/coord/ticks/export", params={"scene": "火星"})
+    assert r2.status_code == 422
+    assert "scene 必须为" in r2.json()["detail"]
+    r3 = client.get("/api/coord/ticks/export",
+                    params={"scene": "城区", "seed": 1})
+    assert r3.status_code == 404
+    assert "无 tick 数据" in r3.json()["detail"]
