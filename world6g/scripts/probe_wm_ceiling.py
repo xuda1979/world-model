@@ -18,6 +18,7 @@ loso_heldout_reward.reward_r2 (0.5337) 同口径可比。
   oracle    : ctx[t+1](10) + win_obj[t+1](1) + act_oh + scene ← 下窗全知上界
 """
 import itertools
+import json
 import sys
 import time
 from pathlib import Path
@@ -90,7 +91,7 @@ def gbm():
         validation_fraction=0.15, random_state=0)
 
 
-def run_loso(name, feats, y, F):
+def run_loso(name, feats, y, F, out):
     t0 = time.time()
     preds = np.empty(len(y), dtype=np.float64)
     per_fold = []
@@ -106,6 +107,9 @@ def run_loso(name, feats, y, F):
     print(f"  {name:32s} pooled R2={pooled:+.4f}  MAE={mae:7.3f}  "
           f"per-fold={[round(v, 3) for v in per_fold]}  "
           f"({time.time() - t0:.0f}s)", flush=True)
+    out["sets"][name] = {
+        "pooled_r2": pooled, "mae": mae, "per_fold": per_fold,
+        "n_transitions": int(len(y))}
     return pooled
 
 
@@ -122,6 +126,21 @@ def main():
     oracle_ctx = np.hstack([XN, a_oh, scene_oh]).astype(np.float32)
     oracle = np.hstack([XN, WN[:, None], a_oh, scene_oh]).astype(np.float32)
 
+    out = {
+        "desc": "时序 WM v3 特征天花板探针 (GBM 5 折 LOSO, 折=seed offset, "
+                "协议同 train_coord_seq_policy.py)",
+        "n_transitions": int(len(R)),
+        "metrics": {
+            "reward_std": float(R.std()), "win_t1_std": float(WN.std()),
+            "ref_t1_std": float(REF.std()),
+            "var_ref_over_var_reward": float(REF.var() / R.var()),
+            "corr_win_ref": float(np.corrcoef(WN, REF)[0, 1]),
+            "corr_win_t_win_t1": float(np.corrcoef(W, WN)[0, 1]),
+            "corr_ref_t1_reward_t1": float(np.corrcoef(REF, R)[0, 1]),
+            "v2_nn_baseline_reward_r2": 0.5337,  # coord_seq_wm_meta.json
+        },
+        "sets": {},
+    }
     print(f"[ceiling] 转移 {len(R)} 条 | reward std={R.std():.3f} "
           f"win[t+1] std={WN.std():.3f} ref[t+1] std={REF.std():.3f}")
     print(f"[ceiling] Var(ref)/Var(reward)={REF.var() / R.var():.3f} "
@@ -132,13 +151,16 @@ def main():
     print("[ceiling] v2 NN 基线: pooled heldout reward R2 = 0.5337 "
           "(coord_seq_wm_meta.json)")
     print("[ceiling] GBM 5 折 LOSO:")
-    run_loso("base(30)→reward [v2 输入]", base, R, F)
-    run_loso("v3(47)→reward", v3, R, F)
-    run_loso("v3(47)→win_obj[t+1]", v3, WN, F)
-    run_loso("v3(47)→ref_obj[t+1]", v3, REF, F)
-    run_loso("oracle_ctx(30)→reward", oracle_ctx, R, F)
-    run_loso("oracle(31)→reward [上界]", oracle, R, F)
-    print("OK: 天花板探针完成。")
+    run_loso("base(30)→reward [v2 输入]", base, R, F, out)
+    run_loso("v3(47)→reward", v3, R, F, out)
+    run_loso("v3(47)→win_obj[t+1]", v3, WN, F, out)
+    run_loso("v3(47)→ref_obj[t+1]", v3, REF, F, out)
+    run_loso("oracle_ctx(30)→reward", oracle_ctx, R, F, out)
+    run_loso("oracle(31)→reward [上界]", oracle, R, F, out)
+
+    dst = ROOT / "datalake" / "generated" / "wm_ceiling_probe.json"
+    dst.write_text(json.dumps(out, ensure_ascii=False, indent=1), "utf-8")
+    print(f"OK: 天花板探针完成。结果写入 {dst.relative_to(ROOT)}")
     return 0
 
 
