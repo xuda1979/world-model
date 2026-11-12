@@ -1418,6 +1418,12 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   docx (2026-11-11), 演示脚本 demo_script_v02.md + 启动手册 startup_manual_v02.md;
   双守护探针复验 72/72 + 36/36, 镜像 grep -c 各 = 1; 唯一剩余项 "备用录像" 为
   13 日演示日项 (非本次缺口)。
+- **复现性修复 (2026-11-13, 根账本镜像)**: 文档化复现路径 (.venv +
+  requirements.lock) 缺 scikit-learn 依赖, 冻结天花板探针 probe_wm_ceiling.py
+  无法文档化复现 (系统 python 3.9 亦不支持 PEP 604)。已装 scikit-learn 1.9.1 并
+  重跑探针 byte-identical 复现 (win R²=0.8978 / reward R²=0.6211, 确定性),
+  锁文件 96→100 pin (sklearn 栈 +4), 启动手册 §1 安装行加 scikit-learn 与数据卡
+  pin 计数同步。commit 0a94c99 已推 origin/main。
 - **Status: completed (2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
   (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
   直通 dry-run 交叉验证白名单, commit 616de45/1062c44 已推 origin/main; 13 日
