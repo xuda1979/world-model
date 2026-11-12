@@ -416,3 +416,46 @@ def test_coord_action_nan_sinr_422_raw_body():
     assert r.status_code == 422, \
         f"NaN sinr_c 应 422 而非 {r.status_code}: {r.text[:120]}"
     assert "非有限值" in r.json()["detail"]
+
+
+# ---------- 时序 tick 回放 (GET /api/coord/ticks, 演示节点 V0.2) ----------
+
+def test_coord_ticks_default_slice_ok():
+    """默认返回首个确定性切片: 每 episode 恰 10 tick, 列/结构完整, JSON 可序列化."""
+    r = client.get("/api/coord/ticks")
+    assert r.status_code == 200, r.text[:200]
+    d = r.json()
+    assert d["n_ticks"] == 10                       # 每 episode 10 决策步
+    assert len(d["rows"]) == 10
+    row0 = d["rows"][0]
+    for col in ("t_ms", "p0", "p1", "p2", "win_obj", "ref_obj", "reward",
+                "sinr_c0", "sinr_c1", "sinr_c2", "n_ue_c0", "n_ue_c1", "n_ue_c2"):
+        assert col in row0
+        assert isinstance(row0[col], (int, float)), f"{col} 非原生 JSON 类型"
+    assert d["episode_reward"] == pytest.approx(sum(x["reward"] for x in d["rows"]))
+    assert d["list_available"]                       # 供前端下拉的场景/seed/ep 树
+
+
+def test_coord_ticks_filter_and_episode_reward():
+    """显式 scene/seed/ep_i 精确过滤; reward 须与 win_obj - ref_obj 一致."""
+    r = client.get("/api/coord/ticks",
+                   params={"scene": "低空", "seed": 10039, "ep_i": 5})
+    assert r.status_code == 200, r.text[:200]
+    d = r.json()
+    assert d["scene"] == "低空" and d["seed"] == 10039 and d["ep_i"] == 5
+    for row in d["rows"]:
+        assert row["reward"] == pytest.approx(row["win_obj"] - row["ref_obj"],
+                                              abs=1e-9)
+
+
+def test_coord_ticks_invalid_scene_422():
+    r = client.get("/api/coord/ticks", params={"scene": "火星"})
+    assert r.status_code == 422
+    assert "scene 必须为" in r.json()["detail"]
+
+
+def test_coord_ticks_missing_combo_404():
+    """存在的 scene + 不存在的 seed/ep_i → 404 而非 500/空结果."""
+    r = client.get("/api/coord/ticks", params={"scene": "城区", "seed": 1})
+    assert r.status_code == 404
+    assert "无 tick 数据" in r.json()["detail"]

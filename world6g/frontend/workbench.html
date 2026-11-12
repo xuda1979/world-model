@@ -98,6 +98,41 @@
                      border-radius: 12px; padding: 3px 10px; font-size: 11px; cursor: pointer; }
   .chat-sug button:hover { color: var(--acc); border-color: var(--acc); }
 
+  /* ---- 协同策略面板 (POST /api/coord/action) ---- */
+  .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 8px; }
+  .form-grid label { font-size: 10px; color: var(--dim); display: block; margin-bottom: 2px; }
+  .form-grid input, .form-grid select { width: 100%; background: var(--panel2); border: 1px solid var(--line);
+      color: var(--txt); border-radius: 6px; padding: 5px 7px; font-size: 12px; outline: none; }
+  .form-grid input:focus, .form-grid select:focus { border-color: var(--acc); }
+  .rec-btn { width: 100%; background: var(--acc); color: #06202e; border: none; border-radius: 8px;
+      padding: 7px 0; cursor: pointer; font-size: 12px; font-weight: 600; margin-top: 2px; }
+  .rec-btn:hover { filter: brightness(1.12); }
+  .rec-btn:disabled { opacity: .5; cursor: wait; }
+  .errline { font-size: 11px; color: #f87171; margin-top: 6px; line-height: 1.5; white-space: pre-wrap; }
+  .combo-badge { display: inline-block; font-size: 13px; font-weight: 600; color: var(--ok);
+      background: #0d2f26; border: 1px solid #1f5c43; border-radius: 6px; padding: 3px 10px; margin: 2px 0; }
+  .topk-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+  .topk-table th, .topk-table td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  .topk-table th { color: var(--dim); font-weight: 500; font-size: 10px; }
+  .topk-table tr.best td { color: var(--ok); font-weight: 600; }
+  .coord-meta { font-size: 10px; color: var(--dim); margin-top: 8px; line-height: 1.6; }
+
+  /* ---- 时序 tick 回放面板 (GET /api/coord/ticks) ---- */
+  .tick-ctl { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; color: var(--dim); }
+  .tick-ctl button { background: var(--panel2); color: var(--txt); border: 1px solid var(--line);
+      border-radius: 6px; padding: 3px 10px; cursor: pointer; font-size: 11px; }
+  .tick-ctl button:hover { border-color: var(--acc); }
+  .tick-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .tick-table th, .tick-table td { text-align: right; padding: 3px 5px; border-bottom: 1px solid var(--line);
+      font-variant-numeric: tabular-nums; }
+  .tick-table th:first-child, .tick-table td:first-child { text-align: left; }
+  .tick-table th { color: var(--dim); font-weight: 500; font-size: 10px; }
+  .tick-table tr.cur { background: #0e3a52; }
+  .tick-bar { display: inline-block; height: 8px; border-radius: 2px; background: var(--acc); vertical-align: middle; }
+  .tick-bar.neg { background: var(--warn); }
+  .tick-rew { font-size: 13px; font-weight: 600; color: var(--ok); }
+  .tick-note { font-size: 10px; color: var(--dim); margin-top: 6px; line-height: 1.6; }
+
   footer { padding: 8px 18px; color: var(--dim); font-size: 11px; border-top: 1px solid var(--line); }
 </style>
 </head>
@@ -142,6 +177,42 @@
     <div class="panel">
       <h2>网络指标 <small id="kpiHint">当前 episode</small></h2>
       <div class="kpis" id="kpiCards"></div>
+    </div>
+    <div class="panel">
+      <h2>协同策略 <small>POST /api/coord/action</small></h2>
+      <div class="form-grid">
+        <div><label>场景</label>
+          <select id="csScene">
+            <option value="城区">城区</option><option value="郊区">郊区</option>
+            <option value="低空">低空</option><option value="机器人工厂">机器人工厂</option>
+            <option value="campus">园区</option>
+          </select></div>
+        <div><label>小区 SINR (dB, 逗号分隔)</label><input id="csSinr" value="12, 8, 10"></div>
+        <div><label>小区 UE 数 (逗号分隔)</label><input id="csNue" value="4, 2, 3"></div>
+      </div>
+      <button class="rec-btn" id="csBtn">推荐协同功率偏移</button>
+      <div id="csOut"></div>
+    </div>
+    <div class="panel">
+      <h2>时序 Tick 回放 <small>GET /api/coord/ticks</small></h2>
+      <div class="form-grid">
+        <div><label>场景</label><select id="tkScene"></select></div>
+        <div><label>seed</label><select id="tkSeed"></select></div>
+        <div><label>episode</label><select id="tkEp"></select></div>
+      </div>
+      <div class="tick-ctl">
+        <button id="tkPrev" title="上一 tick">⏮</button>
+        <button id="tkPlay" title="播放 / 暂停">▶ 播放</button>
+        <button id="tkNext" title="下一 tick">⏭</button>
+        <span id="tkCur">tick 0 / 9</span>
+        <span id="tkRew" class="tick-rew"></span>
+      </div>
+      <table class="tick-table" id="tkTab">
+        <thead><tr><th>tick</th><th>P0</th><th>P1</th><th>P2</th><th>SINR</th><th>UE</th>
+        <th>win_obj</th><th>ref_obj</th><th>reward</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="tick-note" id="tkNote"></div>
     </div>
     <div class="panel">
       <h2>选中详情 <small>点击 3D 场景中的 UE / 基站</small></h2>
@@ -485,11 +556,119 @@ document.getElementById('chatInput').addEventListener('keydown', (e) => {
 document.querySelectorAll('.chat-sug button').forEach(b =>
   b.addEventListener('click', () => sendChat(b.dataset.q)));
 
+/* ---------- 协同策略面板 (POST /api/coord/action) ---------- */
+const CS_SCENES = ['campus', '城区', '郊区', '低空', '机器人工厂'];
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+async function runCoord() {
+  const scene = document.getElementById('csScene').value;
+  const sinrRaw = document.getElementById('csSinr').value;
+  const nueRaw = document.getElementById('csNue').value;
+  const btn = document.getElementById('csBtn'), out = document.getElementById('csOut');
+  const parse3 = (s) => s.split(/[,，\s]+/).filter(Boolean).map(Number);
+  const sinr = parse3(sinrRaw), nue = parse3(nueRaw);
+  if (sinr.length !== 3 || nue.length !== 3 ||
+      sinr.some(v => !isFinite(v)) || nue.some(v => !Number.isInteger(v) || v < 0)) {
+    out.innerHTML = `<div class="errline">输入无效: sinr_c 需 3 个数值(如 12, 8, 10)，n_ue_c 需 3 个非负整数(如 4, 2, 3)。</div>`;
+    return;
+  }
+  btn.disabled = true; out.innerHTML = '<div class="errline">推理中…</div>';
+  try {
+    const r = await post(API + '/api/coord/action', {scene, sinr_c: sinr, n_ue_c: nue});
+    const a = r.action, ctx = r.ctx, top = r.top_k || [];
+    let rows = top.map((t, i) =>
+      `<tr class="${i===0?'best':''}"><td>${esc(t.combo)}</td><td>${t.value}</td></tr>`).join('');
+    out.innerHTML =
+      `<div style="margin:4px 0 2px"><span style="font-size:10px;color:var(--dim)">推荐组合</span><br>` +
+        `<span class="combo-badge">p = (${a.p0}, ${a.p1}, ${a.p2}) dB</span></div>` +
+      `<table class="topk-table"><thead><tr><th>Top-5 组合</th><th>预测值</th></tr></thead>` +
+        `<tbody>${rows}</tbody></table>` +
+      `<div class="coord-meta">场景 ${esc(r.scene)} · 输入 SINR ${ctx.sinr_c.map(fmt).join('/')} dB · UE ${ctx.n_ue_c.join('/')}<br>` +
+      `部署规则: value-head argmax · 模型: ${r.policy ? esc(r.policy.model) : 'CoordPolicyNet'}` +
+      `${r.policy && r.policy.loso ? ' · LOSO 实现率 ' + r.policy.loso.coord_gain_realized_ratio*100 + '%' : ''}</div>`;
+  } catch (e) {
+    out.innerHTML = `<div class="errline">调用失败: ${esc(String(e))}</div>`;
+  } finally { btn.disabled = false; }
+}
+document.getElementById('csBtn').addEventListener('click', runCoord);
+
+/* ---------- 时序 tick 回放面板 (GET /api/coord/ticks) ---------- */
+let TICK = null, TICK_IDX = 0, TICK_MAX = 9, TICKTM = null;
+function tickListAvail(r) { return r.list_available || []; }
+async function initTicks() {
+  // 先拉默认切片拿 scene/seed/ep 全部可用项
+  const first = await jget(API + '/api/coord/ticks');
+  const lv = tickListAvail(first);
+  const scenes = [...new Set(lv.map(x => x.scene))];
+  const ss = document.getElementById('tkScene');
+  ss.innerHTML = scenes.map(s => `<option value="${esc(s)}">${s}</option>`).join('');
+  ss.value = first.scene;
+  await refreshTicksOptions(lv);
+  await loadTicks();
+}
+async function refreshTicksOptions(lv) {
+  const scene = document.getElementById('tkScene').value;
+  const seeds = [...new Set(lv.filter(x => x.scene === scene).map(x => x.seed))];
+  const sd = document.getElementById('tkSeed');
+  sd.innerHTML = seeds.map(s => `<option value="${s}">${s}</option>`).join('');
+  const seed = +sd.value;
+  const eps = (lv.find(x => x.scene === scene && x.seed === seed) || {}).n_episodes || 0;
+  const ep = document.getElementById('tkEp');
+  ep.innerHTML = Array.from({length: eps}, (_, i) => `<option value="${i}">${i}</option>`).join('');
+}
+async function loadTicks() {
+  const scene = document.getElementById('tkScene').value;
+  const seed = +document.getElementById('tkSeed').value;
+  const ep = +document.getElementById('tkEp').value;
+  const r = await jget(`${API}/api/coord/ticks?scene=${encodeURIComponent(scene)}&seed=${seed}&ep_i=${ep}`);
+  TICK = r; TICK_MAX = r.rows.length - 1; TICK_IDX = 0;
+  renderTicks();
+  document.getElementById('tkNote').textContent =
+    `${r.scene} · seed ${r.seed} · ep ${r.ep_i} · 共 ${r.rows.length} tick · 整段回报 Σreward = ${r.episode_reward.toFixed(3)}`;
+}
+function renderTicks() {
+  const tbl = document.querySelector('#tkTab tbody');
+  let html = '';
+  TICK.rows.forEach((row, i) => {
+    const avg = ((row.sinr_c0 + row.sinr_c1 + row.sinr_c2) / 3).toFixed(1);
+    const ue = `${row.n_ue_c0}/${row.n_ue_c1}/${row.n_ue_c2}`;
+    const rw = row.reward, bw = Math.max(2, Math.min(60, Math.abs(rw) * 18));
+    html += `<tr class="${i===TICK_IDX?'cur':''}">
+      <td>t=${i}</td><td>${row.p0}</td><td>${row.p1}</td><td>${row.p2}</td>
+      <td>${avg} dB</td><td>${ue}</td><td>${row.win_obj.toFixed(2)}</td><td>${row.ref_obj.toFixed(2)}</td>
+      <td><span class="tick-bar ${rw<0?'neg':''}" style="width:${bw}px"></span> ${rw>=0?'+':''}${rw.toFixed(3)}</td></tr>`;
+  });
+  tbl.innerHTML = html;
+  document.getElementById('tkCur').textContent = `tick ${TICK_IDX} / ${TICK_MAX}`;
+  const cum = TICK.rows.slice(0, TICK_IDX + 1).reduce((s, x) => s + x.reward, 0);
+  document.getElementById('tkRew').textContent = `Σreward ${cum >= 0 ? '+' : ''}${cum.toFixed(3)}`;
+}
+function tickGo(d) { if (!TICK) return; TICK_IDX = (TICK_IDX + d + TICK_MAX + 1) % (TICK_MAX + 1); renderTicks(); }
+document.getElementById('tkPrev').addEventListener('click', () => tickGo(-1));
+document.getElementById('tkNext').addEventListener('click', () => tickGo(1));
+document.getElementById('tkPlay').addEventListener('click', () => {
+  const b = document.getElementById('tkPlay');
+  if (TICKTM) { clearInterval(TICKTM); TICKTM = null; b.textContent = '▶ 播放'; return; }
+  b.textContent = '⏸ 暂停';
+  TICKTM = setInterval(() => { tickGo(1); if (TICK_IDX === 0 && TICKTM) { clearInterval(TICKTM); TICKTM = null; document.getElementById('tkPlay').textContent = '▶ 播放'; } }, 600);
+});
+document.getElementById('tkScene').addEventListener('change', async () => {
+  const lv = tickListAvail(await jget(API + '/api/coord/ticks'));
+  await refreshTicksOptions(lv);
+  try { await loadTicks(); } catch (e) { document.getElementById('tkNote').textContent = '加载失败: ' + e; }
+});
+document.getElementById('tkSeed').addEventListener('change', async () => {
+  const lv = tickListAvail(await jget(API + '/api/coord/ticks'));
+  await refreshTicksOptions(lv);
+  try { await loadTicks(); } catch (e) { document.getElementById('tkNote').textContent = '加载失败: ' + e; }
+});
+document.getElementById('tkEp').addEventListener('change', loadTicks);
+
 /* ---------- 启动 ---------- */
 (async () => {
   await loadEpisodes();
   const first = EPS.find(e => e.source === 'real') || EPS[0];
   if (first) await selectEp(first.id);
+  try { await initTicks(); } catch (e) { document.getElementById('tkNote').textContent = '时序回放不可用: ' + e; }
 })();
 </script>
 </body>

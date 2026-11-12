@@ -624,6 +624,73 @@ def coord_info():
     return cs.coord_policy_info()
 
 
+# ================= 时序协同 tick 回放 (M11 时序 WM 数据集, 技术报告 §7.6) =================
+
+_TICKS_PARQUET = GEN_DIR / "coord_seq_dataset.parquet"
+_TICK_SCENES = ("campus", "城区", "郊区", "低空", "机器人工厂")
+_TICK_JSON_COLS = ["t_ms", "p0", "p1", "p2", "win_obj", "ref_obj", "reward",
+                   "sinr_c0", "sinr_c1", "sinr_c2",
+                   "n_ue_c0", "n_ue_c1", "n_ue_c2"]
+
+
+def _load_ticks_df() -> pd.DataFrame:
+    if not _TICKS_PARQUET.exists():
+        raise HTTPException(
+            503, f"时序数据集 {_TICKS_PARQUET.name} 不存在 — 该表为训练生成物, "
+                 "请先运行 scripts/gen_coord_seqs.py 生成")
+    try:
+        return pd.read_parquet(_TICKS_PARQUET)
+    except Exception as e:
+        raise HTTPException(500, f"时序数据集读取失败: {e}")
+
+
+@app.get("/api/coord/ticks")
+def coord_ticks(scene: Optional[str] = Query(None),
+                seed: Optional[int] = Query(None),
+                ep_i: Optional[int] = Query(None)):
+    """时序 WM 数据集单 episode 10 tick 回放切片 (只读).
+
+    默认返回首个可用的确定性切片 (campus / seed 9000 / ep_i 0);
+    显式传参时按 scene/seed/ep_i 精确过滤, 场景名须为数据集 5 场景之一。
+    演示节点 (报告下一步 #5) 接入 3D 工作台逐 tick 回放.
+    """
+    df = _load_ticks_df()
+    if scene is None:
+        scene = df["scene"].iloc[0]
+    if scene not in _TICK_SCENES:
+        raise HTTPException(422, f"scene 必须为 {_TICK_SCENES} 之一, 收到: {scene!r}")
+    sub = df[df["scene"] == scene]
+    if sub.empty:
+        raise HTTPException(404, f"scene={scene} 无 tick 数据")
+    if seed is None:
+        seed = int(sub["seed"].iloc[0])
+    paired = sub[sub["seed"] == seed]
+    if paired.empty:
+        raise HTTPException(404, f"scene={scene} seed={seed} 无 tick 数据")
+    if ep_i is None:
+        ep_i = int(paired["ep_i"].iloc[0])
+    g = paired[(paired["ep_i"] == ep_i)].sort_values("dec_idx")
+    if g.empty:
+        raise HTTPException(404, f"scene={scene} seed={seed} ep_i={ep_i} 无 tick 数据")
+    rows = g[_TICK_JSON_COLS].to_dict("records")
+    # numpy 标量 → python 原生 (JSON 可序列化)
+    for r in rows:
+        for k, v in r.items():
+            if isinstance(v, (np.integer,)):
+                r[k] = int(v)
+            elif isinstance(v, (np.floating,)):
+                r[k] = float(v)
+    return {
+        "scene": scene, "seed": int(seed), "ep_i": int(ep_i),
+        "n_ticks": len(rows), "rows": rows,
+        "episode_reward": float(g["reward"].sum()),
+        "list_available": df.groupby(["scene", "seed"])["ep_i"]
+                           .agg("nunique").reset_index()
+                           .rename(columns={"ep_i": "n_episodes"})
+                           .to_dict("records"),
+    }
+
+
 # ================= 园区地图 (中国移动信息港·昌平) =================
 
 @app.get("/api/campus")
