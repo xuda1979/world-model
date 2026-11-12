@@ -2,7 +2,7 @@
 
 - **对应交付**: 方案一 §7 "启动手册 + 10分钟演示脚本 + 备用录像" (演示脚本另见 `docs/demo_script_v02.md`, 冻结 2026-11-12)
 - **适用**: 全新机器从零开始复现数据湖 → Tiny-Twin → 校准 → 时序 WM/策略 → 演示服务全链路
-- **版本锁**: 依赖锁定文件 `world6g/requirements.lock` (96 个精确 pin, `pip freeze` 生成)
+- **版本锁**: 依赖锁定文件 `world6g/requirements.lock` (100 个精确 pin, `pip freeze` 生成)
 
 ## 0. 目录约定
 
@@ -13,7 +13,7 @@
 
 ```bash
 uv venv .venv --python 3.12
-.venv/bin/pip install duckdb pandas pyarrow fastapi "uvicorn[standard]" plotly torch
+.venv/bin/pip install duckdb pandas pyarrow fastapi "uvicorn[standard]" plotly torch scikit-learn
 # 完整锁文件 (可选, 精确复现): .venv/bin/pip install -r world6g/requirements.lock
 ```
 

@@ -71,5 +71,5 @@
 ## 5. 脱敏与复现
 
 - 真实源全部 MR/PHY/UE 标识已改性, 站点经纬度不入湖 (map 仅栅格)
-- 生成链路全可复现: `generate_twin.py --n-per-scene 2 && generate_actions.py && gen_coord_seqs.py`, 依赖锁 `requirements.lock` 96 个精确 pin
+- 生成链路全可复现: `generate_twin.py --n-per-scene 2 && generate_actions.py && gen_coord_seqs.py`, 依赖锁 `requirements.lock` 100 个精确 pin
 - 场景列表: 城区 / 郊区 / 机器人工厂 (低空为负收益场景, 演示"非所有场景应上协同")
