@@ -2,7 +2,7 @@
 
 - **冻结日期**: 2026-11-12 (方案一 §6: "11月12日冻结稳定演示用例, 13日按固定脚本验收")
 - **验收依据**: 方案一 V0.2 (11月13日) — 校准结果 / Sionna 样例 / Tiny-Twin 最小回放 / **界面与导出**; 方案二 §7 十分钟演示结构
-- **演示入口**: 仓库根 `python3 world6g/backend/api.py` (127.0.0.1:8811) → 浏览器打开工作台 `/workbench.html`
+- **演示入口**: 仓库根 `python3 world6g/backend/api.py` (127.0.0.1:8811) → 浏览器打开工作台 `/workbench`
 - **前置生成物** (均已在 `world6g/datalake/generated/`): `coord_seq_dataset.parquet` (5场景×5seed×36ep, 9000 行时序 tick)、`coord_action_dataset.parquet`、`twin_{01..08}_*.parquet`、`wm_ceiling_probe.json`
 - **版本锁**: 本脚本对应 API 路由 `/api/coord/{action,ticks,ticks/export}`、`/api/wm/{action,rollout,verify}`、工作台 3D 场景 5 层渲染、协同策略与 Tick 回放双面板。导出为方案一 V0.2 新增验收点。
 

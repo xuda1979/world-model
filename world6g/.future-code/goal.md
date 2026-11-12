@@ -1399,6 +1399,15 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   非法 scene → **422** (非 500); export 端点 RFC 5987 中文文件名 + ASCII 回退,
   CSV 表体与 JSON 切片逐格一致; 冻结数字复验: Σreward = **4.7318** / tick8 =
   **+3.0652**, 与 demo_script_v02.md 冻结值一致。
+- **review 再加固 (2026-11-12, 根账本镜像)**: 工作台 URL 修正 — 实际
+  路由为 `GET /workbench` (api.py 830), 文档中 `/workbench.html` 会 404;
+  `startup_manual_v02.md` §5 两处与 `demo_script_v02.md` 演示入口已统一改
+  `/workbench` (live 验证 200); 全量实测演示脚本余下接口全部 200 无 500:
+  `POST /api/wm/rollout` (auto → az_offset +30.5°, baseline/acted 双轨预测) /
+  `POST /api/wm/verify` (城区 twin_01, Δ效应逐 KPI RMSE) / `POST /api/wm/action`
+  (PolicyNet-Fused 29,577 params 一步决策) / `GET /api/coord/info`
+  (LOSO 实现率 0.9631) / `GET /api/campus` (中国移动信息港) / `POST /api/chat`
+  (「城区平均RSRP」→ 均值 -115.7dBm)。
 - **Status: completed (2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
   (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
   直通 dry-run 交叉验证白名单, commit 616de45/1062c44 已推 origin/main; 13 日

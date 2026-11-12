@@ -65,12 +65,12 @@ uv venv .venv --python 3.12
 
 ```bash
 # 方式 A (推荐, 演示脚本载入口): 仓库根直启
-python3 world6g/backend/api.py                # → http://127.0.0.1:8811 → /workbench.html
+python3 world6g/backend/api.py                # → http://127.0.0.1:8811 → /workbench
 # 方式 B (uvicorn reload 可选)
 .venv/bin/python -m uvicorn world6g.backend.api:app --port 8811
 ```
 
-页面: `http://127.0.0.1:8811/workbench.html`。5 层 3D 场景 (环境/设备/传播/业务/KPI)、协同策略面板、时序 Tick 回放面板、数据湖问答、CSV/JSON 导出按钮。
+页面: `http://127.0.0.1:8811/workbench`。5 层 3D 场景 (环境/设备/传播/业务/KPI)、协同策略面板、时序 Tick 回放面板、数据湖问答、CSV/JSON 导出按钮。
 
 ## 6. 演示日依赖就绪自检 (13 日按 demo_script_v02.md 打勾前)
 

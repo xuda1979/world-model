@@ -42,5 +42,12 @@ Active constraints: make sure we have very good world prediction models and acti
   非法 scene → 422 (非 500); `/api/coord/ticks/export` → RFC 5987 中文文件名 +
   ASCII 回退, CSV 表体与 JSON 切片逐格一致 (含 reward 列); 冻结数字实测复验
   Σreward = **4.7318** / tick8 = **+3.0652** 与 demo_script_v02.md 冻结值一致。
+- **review 再加固 (2026-11-12)**: 工作台 URL 修正 — 实际路由为 `/workbench`
+  (api.py 830 行), 文档中 `/workbench.html` 会 404; 启动手册 §5 两处与演示脚本 v0.2
+  演示入口已统一改 `/workbench` (live 验证 200)。随后全量实测演示脚本余下接口:
+  `POST /api/wm/rollout` (auto 动作 az_offset, 双轨预测) / `POST /api/wm/verify`
+   (预测-验证闭环, 城区, Δ效应逐 KPI) / `POST /api/wm/action` (PolicyNet-Fused
+  一步决策) / `GET /api/coord/info` (LOSO 0.9631) / `GET /api/campus` / `POST /api/chat`
+  (「城区平均RSRP」应答) 全部 200, 无 500。
 - **Status: completed (2026-11-12)** — 三交付物 + 双账本镜像一次提交推送
   (616de45 + 状态收口 1062c44, 已推 origin/main, 13 日演示前置全部就绪)。
