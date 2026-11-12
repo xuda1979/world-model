@@ -64,8 +64,8 @@ uv venv .venv --python 3.12
 ## 5. 演示服务 (演示日前置)
 
 ```bash
-# 方式 A (推荐, 演示脚本载入口): 仓库根直启
-python3 world6g/backend/api.py                # → http://127.0.0.1:8811 → /workbench
+# 方式 A (推荐, 演示脚本载入口): 仓库根直启 (venv 解释器含 fastapi/plotly 全栈)
+.venv/bin/python3 world6g/backend/api.py        # → http://127.0.0.1:8811 → /workbench
 # 方式 B (uvicorn reload 可选)
 .venv/bin/python -m uvicorn world6g.backend.api:app --port 8811
 ```

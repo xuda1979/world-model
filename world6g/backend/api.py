@@ -826,6 +826,9 @@ async def chat(req: dict):
 def index():
     return FileResponse(Path(__file__).resolve().parents[1] / "frontend" / "index.html")
 
+# 前端静态资源本地化 (Plotly 3D 引擎等, 演示机无需外网 CDN)
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parents[1] / "frontend"), name="static")
+
 
 @app.get("/workbench")
 def workbench():
