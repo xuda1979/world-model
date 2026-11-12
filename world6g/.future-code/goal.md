@@ -1394,6 +1394,6 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   **5 种子** × 36 ep = 25 场景-种对 (每场景种子为 9000 族 base+偏移), 非 "25 种子/场景";
   ③ WM ensemble 3 成员存于单文件 `coord_seq_wm.pt`; ④ scripts/ 计数 34→**33**;
   ⑤ API 自检 URL 参数对齐 `ep_i` (非 `ep`); ⑥ 导出文件名与 RFC 5987 表头一致。
-- **Status: completed (待推送, 2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
-  (镜像纪律: 双账本各 1 处会话标记); 提交前跑测试套件 64/64 PASS + `git add -n` argv
-  直通 dry-run 交叉验证白名单后一次提交推送。
+- **Status: completed (2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
+  (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
+  直通 dry-run 交叉验证白名单, commit 616de45 已推 origin/main 复验通过。

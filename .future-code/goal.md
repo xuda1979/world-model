@@ -37,4 +37,5 @@ Active constraints: make sure we have very good world prediction models and acti
 - **交叉核验修正**: twin 引擎描述纠正 (非 Sionna, 实为 38.901+AR(1) 结构引擎),
   coord_seq 结构实测 (5 场景 × 5 种子 × 36 ep = 25 场景-种对, 非 25 种子),
   WM ensemble 3 成员存单文件, API 参数 ep_i 对齐。
-- **Status: completed (2026-11-12)** — 三交付物 + 双账本一次提交推送 (待验证)。
+- **Status: completed (2026-11-12)** — 三交付物 + 双账本一次提交推送
+  (commit 616de45, 5 文件 302 行, 已推 origin/main, 复验通过)。
