@@ -37,5 +37,10 @@ Active constraints: make sure we have very good world prediction models and acti
 - **交叉核验修正**: twin 引擎描述纠正 (非 Sionna, 实为 38.901+AR(1) 结构引擎),
   coord_seq 结构实测 (5 场景 × 5 种子 × 36 ep = 25 场景-种对, 非 25 种子),
   WM ensemble 3 成员存单文件, API 参数 ep_i 对齐。
-- **Status: completed (2026-11-12)** — 三交付物 + 双账本一次提交推送
-  (commit 616de45, 5 文件 302 行, 已推 origin/main, 复验通过)。
+- **演示日前置自检全通 (2026-11-12 实测, 启动手册 §6)**: 服务直启无 500;
+  `/api/coord/ticks?scene=campus&seed=9000&ep_i=0` → 200 + 10 rows (n_ticks=10);
+  非法 scene → 422 (非 500); `/api/coord/ticks/export` → RFC 5987 中文文件名 +
+  ASCII 回退, CSV 表体与 JSON 切片逐格一致 (含 reward 列); 冻结数字实测复验
+  Σreward = **4.7318** / tick8 = **+3.0652** 与 demo_script_v02.md 冻结值一致。
+- **Status: completed (2026-11-12)** — 三交付物 + 双账本镜像一次提交推送
+  (616de45 + 状态收口 1062c44, 已推 origin/main, 13 日演示前置全部就绪)。

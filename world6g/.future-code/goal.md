@@ -1394,6 +1394,12 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   **5 种子** × 36 ep = 25 场景-种对 (每场景种子为 9000 族 base+偏移), 非 "25 种子/场景";
   ③ WM ensemble 3 成员存于单文件 `coord_seq_wm.pt`; ④ scripts/ 计数 34→**33**;
   ⑤ API 自检 URL 参数对齐 `ep_i` (非 `ep`); ⑥ 导出文件名与 RFC 5987 表头一致。
+- **演示日前置自检全通 (2026-11-12 live 实测, 启动手册 §6)**: api.py 直启无 500;
+  `GET /api/coord/ticks?scene=campus&seed=9000&ep_i=0` → 200 `n_ticks=10` 行;
+  非法 scene → **422** (非 500); export 端点 RFC 5987 中文文件名 + ASCII 回退,
+  CSV 表体与 JSON 切片逐格一致; 冻结数字复验: Σreward = **4.7318** / tick8 =
+  **+3.0652**, 与 demo_script_v02.md 冻结值一致。
 - **Status: completed (2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
   (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
-  直通 dry-run 交叉验证白名单, commit 616de45 已推 origin/main 复验通过。
+  直通 dry-run 交叉验证白名单, commit 616de45/1062c44 已推 origin/main; 13 日
+  按 demo_script_v02.md 验收前置全部就绪 (仅"备用录像"留演示日)。
