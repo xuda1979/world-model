@@ -24,3 +24,17 @@ Active constraints: make sure we have very good world prediction models and acti
 - **Status: completed (2026-11-12)** — 收口 commit 含 api.py + workbench.html +
   test_wm_api.py + demo_script_v02.md + 双账本, 推送后复验 64/64 PASS。V0.2
   冻结演示前置全部就绪, 13 日按脚本打勾。
+
+## 会话 38 (2026-11-12, 季度归档交付: 依赖锁 + 数据卡 + 启动手册, 双账本镜像)
+- **依赖锁定文件** `world6g/requirements.lock` (96 个精确 pin, pip freeze 生成) —
+  方案一 §7/方案二 §8 "固定配置和复现脚本" 缺失项。
+- **数据卡** `world6g/docs/data_cards_v02.md` — 四类数据集全行数实测
+  (curated 100,830 / twin 59,200 / twin_cal 104,000 / 反事实 282,525),
+  模型权重注册表 (613,874 / 142,347×3 / 34,685 / 18,772 / 29,577),
+  天花板数字 (win R²=0.8978, reward R²=0.6211 v3 上界 vs v2 0.5337)。
+- **启动手册** `world6g/docs/startup_manual_v02.md` — 全新机器零起步全链路
+  (安装/数据流水线/训练/评估探针/演示服务/演示日自检/异常排查)。
+- **交叉核验修正**: twin 引擎描述纠正 (非 Sionna, 实为 38.901+AR(1) 结构引擎),
+  coord_seq 结构实测 (5 场景 × 5 种子 × 36 ep = 25 场景-种对, 非 25 种子),
+  WM ensemble 3 成员存单文件, API 参数 ep_i 对齐。
+- **Status: completed (2026-11-12)** — 三交付物 + 双账本一次提交推送 (待验证)。

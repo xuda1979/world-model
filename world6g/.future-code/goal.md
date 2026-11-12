@@ -1371,3 +1371,29 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   api.py + workbench.html + test_wm_api.py + demo_script_v02.md + 双账本, 推送后
   复验: 测试套件 64/64 PASS (含新增 2 项导出护栏)。V0.2 冻结演示全部前置就绪,
   13 日按 demo_script_v02.md 逐项打勾验收。
+
+## 会话 38 (2026-11-12, 季度归档交付: 依赖锁 + 数据卡 + 启动手册, 双账本镜像)
+- **依赖锁定文件** `world6g/requirements.lock` (96 个精确 pin, `pip freeze` 生成) —
+  闭合方案一 §7 "源码库/依赖锁定" 与方案二 §8 "固定配置和复现脚本" 缺失项
+  (此前仅 README 手写安装清单, 无精确版本锁)。
+- **数据卡** `world6g/docs/data_cards_v02.md` — 方案一 §7 "四类数据集及数据卡" 交付:
+  总览表 (curated 实测 **100,830** 行 / twin_{01..08} **59,200** / twin_cal 5 场景
+  **104,000** / 反事实动作分支 **282,525** 合计), 逐表行数×大小×关键列,
+  模型权重注册表 (coord_policy **613,874** / coord_seq_wm ensemble 3×**142,347**
+  存单文件 / coord_seq_policy **34,685** / gru_wm(_ms) **18,772** / policy(_cal/fused)
+  **29,577**), 天花板数字 (win_obj[t+1] **R²=0.8978** / reward **0.6211** 上界 vs
+  v2 NN **0.5337**), 脱敏与复现 (全标识改性 / parquet 实测口径声明)。
+- **启动手册** `world6g/docs/startup_manual_v02.md` — 方案一 §7 "启动手册 + 10分钟
+  演示脚本" 归档: 全新机器零起步 ①安装 (≥3.12 venv + requirements.lock) ②数据流水线
+  (ingest → generate_twin --n-per-scene 2 → generate_actions → gen_coord_seqs)
+  ③训练全模型栈 ④评估与探针 (probe_wm_ceiling / eval_closedloop×3 / 双守护探针 /
+  pytest 64) ⑤演示服务 (api.py → 127.0.0.1:8811) ⑥演示日依赖就绪自检 ⑦异常排查速查。
+- **交叉核验修正** (全部经 live parquet/meta/代码实测, 非手抄):
+  ① twin 引擎描述纠正 — 非 "Sionna 信道", 实为 `twin.engine.TinyTwin` 38.901 路损 +
+  AR(1) 阴影 + 扇区增益, 参数由数据湖校准; ② coord_seq 结构实测 — 5 场景 ×
+  **5 种子** × 36 ep = 25 场景-种对 (每场景种子为 9000 族 base+偏移), 非 "25 种子/场景";
+  ③ WM ensemble 3 成员存于单文件 `coord_seq_wm.pt`; ④ scripts/ 计数 34→**33**;
+  ⑤ API 自检 URL 参数对齐 `ep_i` (非 `ep`); ⑥ 导出文件名与 RFC 5987 表头一致。
+- **Status: completed (待推送, 2026-11-12, 根账本镜像)** — 三交付物 + 双账本镜像
+  (镜像纪律: 双账本各 1 处会话标记); 提交前跑测试套件 64/64 PASS + `git add -n` argv
+  直通 dry-run 交叉验证白名单后一次提交推送。
