@@ -223,6 +223,8 @@ _FE_CALLS = [
     ("GET",  "/api/capabilities",    None),
     ("GET",  "/api/twin/report",     None),
     ("GET",  "/api/campus",          None),
+    ("GET",  "/api/calib/report",    None),
+    ("GET",  "/api/gen/jobs",        None),
     ("GET",  "/api/scene3d/1",       None),
     ("POST", "/api/wm/rollout",      {"episode_id": "1", "action": {"type": "az_offset", "value": 5.0}, "steps": 6}),
     ("POST", "/api/wm/verify",       {"episode_id": "twin_01", "action": "auto", "steps": 4, "window_t": 60}),

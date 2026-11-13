@@ -84,3 +84,13 @@ Active constraints: make sure we have very good world prediction models and acti
   07 seed10000 泛化回放; `index.md` 时间轴对齐 demo_script_v02.md 分钟轴 + 导出
   机器验证 (CSV 11 行 / JSON +6,+6,+6 Top-5) + 复现命令。形态说明: 演示机无
   ffmpeg, 采用逐段截图序列 (与仓库截图验收惯例一致)。双账本镜像 (会话 39)。
+- **工作台数据页补全 (2026-11-13, 会话 39)**: 方案一 §4 表1 界面模块 "数据生成与校准"
+  差距收口 — ① **查看校准前后**: 新增 `GET /api/calib/report` (读预计算
+  sim_calib_report.json: 真实锚点 vs uncal vs cal, 逐场景 JS 散度, 平均 0.0834 →
+  0.0701) + index.html "数据生成与校准" 面板 (校准前后分组柱状图 + 摘要注记);
+  ② **任务队列/日志** (稳定版要求): 新增 `GET /api/gen/jobs` (datalake/generated +
+  models 产物登记, 101 项, 名称/类别/大小/生成时间) + 面板右栏产物清单表;
+  ③ 数据导出/长任务进度 V0.2 已有证据 (v02_acceptance_evidence.json), 无缺口。
+  前端-后端契约测试注册 2 新路由 (零死链守卫); 测试套件 64/64 PASS; live 重启
+  实测两端点 200 + 浏览器面板渲染确认 (截图 docs/img/frontend_data_calib_panel.png)。
+  双账本镜像 (会话 39)。

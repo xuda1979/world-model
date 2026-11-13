@@ -167,6 +167,41 @@ def twin_report():
     return json.loads(p.read_text())
 
 
+# ================= 数据生成与校准 (方案一 §4 表1: 查看校准前后; 任务队列/日志/导出) =================
+
+_CALIB_REPORT = GEN_DIR / "sim_calib_report.json"
+
+
+@app.get("/api/calib/report")
+def calib_report():
+    """校准前后对照 (首版读预计算结果): 真实锚点 vs 校准前 (uncal) vs 校准后 (cal),
+    逐场景 RSRP/SINR/DL/CQI + JS 散度 — 数据来源 scripts/sim_calib.py."""
+    if not _CALIB_REPORT.exists():
+        raise HTTPException(
+            503, f"校准报告 {_CALIB_REPORT.name} 不存在 — 请先运行 scripts/sim_calib.py 生成")
+    return json.loads(_CALIB_REPORT.read_text())
+
+
+@app.get("/api/gen/jobs")
+def gen_jobs():
+    """生成任务清单 (方案一 §4 表1 稳定版 "任务队列、日志" 预计算视图):
+    datalake/generated + models 产物登记 — 名称/大小/生成时间, 最近在前."""
+    from datetime import datetime as _dt
+    items = []
+    for d, kind in ((GEN_DIR, "datalake/generated"),
+                    (Path(__file__).resolve().parents[1] / "models", "models")):
+        if not d.exists():
+            continue
+        for p in sorted(d.iterdir(), key=lambda x: -x.stat().st_mtime):
+            if p.name.startswith("__"):
+                continue
+            st = p.stat()
+            items.append({"name": p.name, "kind": kind,
+                          "size_kb": round(st.st_size / 1024.0, 1),
+                          "mtime": _dt.fromtimestamp(st.st_mtime).isoformat(timespec="seconds")})
+    return {"n": len(items), "jobs": items[:80]}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "tables": [r[0] for r in CON.execute("SHOW TABLES").fetchall()]}

@@ -55,6 +55,11 @@
   .panel h2 small { color: var(--dim); font-weight: 400; margin-left: 8px; }
   .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
   .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .jobs-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .jobs-table th { text-align: left; color: var(--dim); font-weight: 500; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+  .jobs-table td { padding: 3px 6px; border-bottom: 1px solid rgba(148,163,184,.08); font-variant-numeric: tabular-nums; }
+  .jobs-table tr:hover td { background: rgba(56,189,248,.06); }
+  .jobs-kind { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; border: 1px solid var(--line); color: var(--dim); }
   .plot { width: 100%; min-height: 260px; }
   #mapPlot { min-height: 420px; }
   .metric-tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -149,6 +154,20 @@
       <div class="panel">
         <h2>Tiny-Twin 校准 <small>生成值 vs 真实值域</small></h2>
         <div id="twinPlot" class="plot"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>数据生成与校准 <small>方案一 §4 — 查看校准前后 (读预计算 sim_calib_report) · 生成任务清单与日志</small></h2>
+      <div class="grid2b">
+        <div>
+          <div id="calibPlot" class="plot" style="min-height:300px"></div>
+          <div class="campus-note" id="calibNote"></div>
+        </div>
+        <div style="max-height:360px; overflow:auto">
+          <div class="campus-note" id="genJobsNote" style="margin-bottom:6px"></div>
+          <div id="genJobs"></div>
+        </div>
       </div>
     </div>
 
@@ -573,9 +592,55 @@ async function loadCampus() {
     `建筑来源: ${c.sources.buildings}; 高度: ${c.sources.heights}<br>${c.sources.coverage_note}`;
 }
 
+/* ---------- 数据生成与校准 (方案一 §4: 查看校准前后 + 生成任务清单) ---------- */
+async function loadCalib() {
+  try {
+    const rep = await jget(API + '/api/calib/report');
+    const scenes = [...new Set([...rep.uncal.map(r => r.scene), ...rep.cal.map(r => r.scene)])];
+    const uBy = Object.fromEntries(rep.uncal.map(r => [r.scene, r.js_rsrp]));
+    const cBy = Object.fromEntries(rep.cal.map(r => [r.scene, r.js_rsrp]));
+    Plotly.react('calibPlot', [
+      { x: scenes, y: scenes.map(s => uBy[s] ?? null), type: 'bar', name: '校准前 (uncal)',
+        marker: {color: '#fb7185'} },
+      { x: scenes, y: scenes.map(s => cBy[s] ?? null), type: 'bar', name: '校准后 (cal)',
+        marker: {color: '#34d399'} },
+    ], { ...BASE, barmode: 'group',
+        xaxis: { ...BASE.xaxis, title: {text: '场景', font: {size: 11}} },
+        yaxis: { ...BASE.yaxis, title: {text: 'JS 散度 · RSRP (低=贴近真实)', font: {size: 11}} },
+        legend: {font: {size: 10}, orientation: 'h', y: -0.2},
+        margin: {l: 58, r: 12, t: 8, b: 66} },
+      {displayModeBar: false});
+    document.getElementById('calibNote').innerHTML =
+      `读预计算结果: <b>sim_calib_report.json</b> (scripts/sim_calib.py 生成) · ` +
+      `平均 JS 散度 (RSRP): 校准前 ${rep.uncal_mean_js_rsrp.toFixed(4)} → 校准后 ${rep.cal_mean_js_rsrp.toFixed(4)} · 逐场景对照见图`;
+  } catch (e) {
+    document.getElementById('calibNote').textContent = '校准报告不可用: ' + e;
+  }
+}
+
+async function loadGenJobs() {
+  try {
+    const d = await jget(API + '/api/gen/jobs');
+    document.getElementById('genJobsNote').innerHTML =
+      `<b>${d.n}</b> 个产物登记 (datalake/generated + models, 最近在前) — 稳定版 "任务队列、日志" 预计算视图 (方案一 §4)`;
+    const rows = d.jobs.map(j =>
+      `<tr><td>${j.name}</td>` +
+      `<td><span class="jobs-kind">${j.kind === 'datalake/generated' ? 'generated' : 'models'}</span></td>` +
+      `<td style="text-align:right">${Number(j.size_kb).toLocaleString()}</td>` +
+      `<td>${j.mtime.replace('T', ' ')}</td></tr>`).join('');
+    document.getElementById('genJobs').innerHTML =
+      `<table class="jobs-table"><thead><tr><th>产物</th><th>类别</th>` +
+      `<th style="text-align:right">大小 (KB)</th><th>生成时间</th></tr></thead><tbody>${rows}</tbody></table>`;
+  } catch (e) {
+    document.getElementById('genJobsNote').textContent = '任务清单不可用: ' + e;
+  }
+}
+
 loadEpisodes();
 loadCapabilities();
 loadCampus();
+loadCalib();
+loadGenJobs();
 document.getElementById('wmEp').addEventListener('change', fillWmUes);
 document.getElementById('wmRun').addEventListener('click', runWmRollout);
 document.getElementById('wmMode').addEventListener('click', e => {
