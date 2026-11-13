@@ -68,3 +68,11 @@ Active constraints: make sure we have very good world prediction models and acti
 - **Status: completed (2026-11-12)** — 三交付物 + 双账本镜像一次提交推送
   (616de45 + 状态收口 1062c44 + 依赖栈修复 0a94c99, 已推 origin/main,
   13 日演示前置全部就绪)。
+- **V0.2 验收证据实测 (2026-11-13, 会话 39)**: 方案一 §7 表4 验收方式落成机器测量
+  探针 `scripts/probe_v02_acceptance.py` — demo_script_v02.md 全演示序列连续回放
+  × 3 轮: 3/3 无阻断 (9 端点 × 3, 含 422 守卫语义 + CSV 导出结构); 稳态缓存交互
+  P95 = 359.6 ms (预算 ≤ 2,000 ms, 口径: api.py 无显式缓存层, DuckDB 进程内 +
+  OS 页缓存即热路径, 稳态轮常规调用, 422 错误路径不计); 长任务进度标记 OK
+  ('推理中…'/按钮禁用/tick 播放与进度条 + wm/verify timing_ms 服务端时长披露)。
+  证据 → `datalake/generated/v02_acceptance_evidence.json`; 启动手册 §4 探针行 +
+  §6 自检项同步。双账本镜像 (会话 39 各 1 处)。

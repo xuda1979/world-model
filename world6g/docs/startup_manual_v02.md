@@ -57,6 +57,8 @@ uv venv .venv --python 3.12
 # 双守护探针 (技术报告 72/72 + 周报 36/36)
 .venv/bin/python world6g/scripts/probe_report_v3.py
 .venv/bin/python world6g/scripts/probe_progress_1111.py
+# V0.2 验收证据探针 (三轮演示无阻断 + 缓存交互 P95 ≤ 2s + 长任务进度) → v02_acceptance_evidence.json
+.venv/bin/python world6g/scripts/probe_v02_acceptance.py
 # 测试套件 (64 个护栏测试)
 .venv/bin/python -m pytest world6g/tests/ -q
 ```
@@ -79,6 +81,7 @@ uv venv .venv --python 3.12
 - [ ] 服务启动无 500: 调 `GET /api/coord/ticks?scene=campus&seed=9000&ep_i=0` 返回 10 行; 非法入参返回 422 (非 500)
 - [ ] 导出: `GET /api/coord/ticks/export?scene=campus&seed=9000&ep_i=0` 返回 `coord_ticks_campus_s9000_ep0.csv` (RFC 5987 中文文件名回退)
 - [ ] 冻结数字对照: Σreward = 4.7318; tick8 reward = +3.065; win R²=0.8978 / reward R²=0.6211 (见 demo_script_v02.md)
+- [x] V0.2 验收证据实测 (2026-11-13, 机器测量): `probe_v02_acceptance.py` 三轮演示 3/3 无阻断; 稳态缓存交互 P95 = 359.6 ms (预算 ≤ 2,000 ms); 长任务进度标记 OK → `datalake/generated/v02_acceptance_evidence.json`
 - [ ] 离线预案: 无外网时问答走本地规则引擎, 3D 用 Plotly 本地渲染, 数据全在 parquet
 
 ## 7. 异常排查速查

@@ -1428,3 +1428,8 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   (镜像纪律: 双账本各 1 处会话标记); 提交前测试套件 64/64 PASS + `git add -n` argv
   直通 dry-run 交叉验证白名单, commit 616de45/1062c44 已推 origin/main; 13 日
   按 demo_script_v02.md 验收前置全部就绪 (仅"备用录像"留演示日)。
+- **V0.2 验收证据实测 (2026-11-13, 根账本镜像, 会话 39)**: 方案一 §7 表4 验收方式
+  落成机器测量探针 `scripts/probe_v02_acceptance.py` — 三轮连续演示 3/3 无阻断;
+  稳态缓存交互 P95 = 359.6 ms (≤ 2,000 ms); 长任务进度标记 OK; 证据
+  `datalake/generated/v02_acceptance_evidence.json`; 启动手册 §4/§6 同步。
+  双账本镜像 (会话 39 各 1 处)。

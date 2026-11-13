@@ -1,0 +1,267 @@
+{
+  "probe": "probe_v02_acceptance.py",
+  "generated_at": "2026-11-13T08:02:50+00:00",
+  "git_head": "8913251",
+  "acceptance_ref": "方案一 §7 表4 (11月13日 V0.2): 固定环境连续演示三轮无阻断; 缓存交互 P95 ≤ 2 秒; 长任务显示进度",
+  "base_url": "http://127.0.0.1:8811",
+  "cache_implementation": "api.py 无显式缓存层 — DuckDB 进程内查询 + OS 页缓存即热路径; P95 口径 = 稳态轮 (第 2..N 轮) 常规交互调用 (不含 422 守卫错误路径)",
+  "rounds_total": 3,
+  "rounds_pass": 3,
+  "rounds_no_block": true,
+  "latency": {
+    "cold_round_p95_ms": 288.4,
+    "warm_p95_ms": 359.6,
+    "p95_budget_ms": 2000.0,
+    "p95_pass": true,
+    "n_warm_samples": 16,
+    "per_endpoint": {
+      "episodes": {
+        "cold_ms_p95": 243.5,
+        "warm_ms_mean": 13.3,
+        "warm_ms_max": 14.1
+      },
+      "scene3d": {
+        "cold_ms_p95": 39.7,
+        "warm_ms_mean": 12.8,
+        "warm_ms_max": 13.2
+      },
+      "coord_action": {
+        "cold_ms_p95": 54.9,
+        "warm_ms_mean": 1.6,
+        "warm_ms_max": 1.8
+      },
+      "coord_info": {
+        "cold_ms_p95": 0.7,
+        "warm_ms_mean": 0.6,
+        "warm_ms_max": 0.7
+      },
+      "coord_ticks": {
+        "cold_ms_p95": 13.8,
+        "warm_ms_mean": 5.0,
+        "warm_ms_max": 6.1
+      },
+      "wm_verify": {
+        "cold_ms_p95": 288.4,
+        "warm_ms_mean": 309.4,
+        "warm_ms_max": 359.6
+      },
+      "chat": {
+        "cold_ms_p95": 19.4,
+        "warm_ms_mean": 19.4,
+        "warm_ms_max": 21.2
+      },
+      "guard_422": {
+        "cold_ms_p95": 0.7,
+        "warm_ms_mean": 0.8,
+        "warm_ms_max": 0.9
+      },
+      "export_csv": {
+        "cold_ms_p95": 3.9,
+        "warm_ms_mean": 3.6,
+        "warm_ms_max": 4.5
+      }
+    }
+  },
+  "guards": {
+    "coord_422_range": true,
+    "export_csv_rows": 11
+  },
+  "long_task_progress": {
+    "ok": true,
+    "markers": {
+      "coord_inference_progress": true,
+      "button_disabled_wait": true,
+      "tick_play_controls": true,
+      "tick_step_progress": true
+    }
+  },
+  "rounds_detail": [
+    {
+      "round": 1,
+      "pass": true,
+      "n_calls": 9,
+      "calls": [
+        {
+          "label": "episodes",
+          "status": 200,
+          "ms": 243.5,
+          "ok": true
+        },
+        {
+          "label": "scene3d",
+          "status": 200,
+          "ms": 39.7,
+          "ok": true
+        },
+        {
+          "label": "coord_action",
+          "status": 200,
+          "ms": 54.9,
+          "ok": true
+        },
+        {
+          "label": "coord_info",
+          "status": 200,
+          "ms": 0.7,
+          "ok": true
+        },
+        {
+          "label": "coord_ticks",
+          "status": 200,
+          "ms": 13.8,
+          "ok": true
+        },
+        {
+          "label": "wm_verify",
+          "status": 200,
+          "ms": 288.4,
+          "ok": true
+        },
+        {
+          "label": "chat",
+          "status": 200,
+          "ms": 19.4,
+          "ok": true
+        },
+        {
+          "label": "guard_422",
+          "status": 422,
+          "ms": 0.7,
+          "ok": true
+        },
+        {
+          "label": "export_csv",
+          "status": 200,
+          "ms": 3.9,
+          "ok": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "round": 2,
+      "pass": true,
+      "n_calls": 9,
+      "calls": [
+        {
+          "label": "episodes",
+          "status": 200,
+          "ms": 14.1,
+          "ok": true
+        },
+        {
+          "label": "scene3d",
+          "status": 200,
+          "ms": 13.2,
+          "ok": true
+        },
+        {
+          "label": "coord_action",
+          "status": 200,
+          "ms": 1.8,
+          "ok": true
+        },
+        {
+          "label": "coord_info",
+          "status": 200,
+          "ms": 0.7,
+          "ok": true
+        },
+        {
+          "label": "coord_ticks",
+          "status": 200,
+          "ms": 6.1,
+          "ok": true
+        },
+        {
+          "label": "wm_verify",
+          "status": 200,
+          "ms": 259.1,
+          "ok": true
+        },
+        {
+          "label": "chat",
+          "status": 200,
+          "ms": 17.6,
+          "ok": true
+        },
+        {
+          "label": "guard_422",
+          "status": 422,
+          "ms": 0.6,
+          "ok": true
+        },
+        {
+          "label": "export_csv",
+          "status": 200,
+          "ms": 2.8,
+          "ok": true
+        }
+      ],
+      "failures": []
+    },
+    {
+      "round": 3,
+      "pass": true,
+      "n_calls": 9,
+      "calls": [
+        {
+          "label": "episodes",
+          "status": 200,
+          "ms": 12.6,
+          "ok": true
+        },
+        {
+          "label": "scene3d",
+          "status": 200,
+          "ms": 12.3,
+          "ok": true
+        },
+        {
+          "label": "coord_action",
+          "status": 200,
+          "ms": 1.4,
+          "ok": true
+        },
+        {
+          "label": "coord_info",
+          "status": 200,
+          "ms": 0.6,
+          "ok": true
+        },
+        {
+          "label": "coord_ticks",
+          "status": 200,
+          "ms": 4.0,
+          "ok": true
+        },
+        {
+          "label": "wm_verify",
+          "status": 200,
+          "ms": 359.6,
+          "ok": true
+        },
+        {
+          "label": "chat",
+          "status": 200,
+          "ms": 21.2,
+          "ok": true
+        },
+        {
+          "label": "guard_422",
+          "status": 422,
+          "ms": 0.9,
+          "ok": true
+        },
+        {
+          "label": "export_csv",
+          "status": 200,
+          "ms": 4.5,
+          "ok": true
+        }
+      ],
+      "failures": []
+    }
+  ],
+  "verdict": "PASS"
+}
