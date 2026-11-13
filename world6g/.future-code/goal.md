@@ -1433,3 +1433,7 @@ WM 保真度 pearson 0.797795 = 0.797795）。
   稳态缓存交互 P95 = 359.6 ms (≤ 2,000 ms); 长任务进度标记 OK; 证据
   `datalake/generated/v02_acceptance_evidence.json`; 启动手册 §4/§6 同步。
   双账本镜像 (会话 39 各 1 处)。
+- **备用演示录像落成 (2026-11-13, 根账本镜像, 会话 39)**: 方案一 §7 表4 "备用录像"
+  交付 — `docs/backup_recording/` 8 帧截图序列 (Playwright 直驱 live 服务, 对齐
+  demo_script_v02.md 冻结时间轴) + `index.md` 索引 (导出机器验证 + 复现命令)。
+  双账本镜像 (会话 39)。

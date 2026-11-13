@@ -76,3 +76,11 @@ Active constraints: make sure we have very good world prediction models and acti
   ('推理中…'/按钮禁用/tick 播放与进度条 + wm/verify timing_ms 服务端时长披露)。
   证据 → `datalake/generated/v02_acceptance_evidence.json`; 启动手册 §4 探针行 +
   §6 自检项同步。双账本镜像 (会话 39 各 1 处)。
+- **备用演示录像落成 (2026-11-13, 会话 39)**: 方案一 §7 表4 唯一剩余演示日项
+  "备用录像" 交付 — `docs/backup_recording/` 截图序列 (8 帧, 1600×1000, Playwright
+  直驱 live 服务真实 API 调用非摆拍): 00 入口 → 01 3D 五层 (twin_01) → 02 协同推荐
+  (冻结输入 城区/SINR 23.0,-1.4,33.0/UE 8,15,6) → 03 tick 回放高光步 tick8
+  (Σreward 累计 +5.398) → 04 跨场景低空 → 05 问答 3 例 → 06 非法输入 422 护栏 →
+  07 seed10000 泛化回放; `index.md` 时间轴对齐 demo_script_v02.md 分钟轴 + 导出
+  机器验证 (CSV 11 行 / JSON +6,+6,+6 Top-5) + 复现命令。形态说明: 演示机无
+  ffmpeg, 采用逐段截图序列 (与仓库截图验收惯例一致)。双账本镜像 (会话 39)。
